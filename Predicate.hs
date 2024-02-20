@@ -1,7 +1,8 @@
 {-# LANGUAGE InstanceSigs #-}
+{-# LANGUAGE LambdaCase #-}
+
 {-# OPTIONS_GHC -Wno-unused-do-bind #-}
 {-# OPTIONS_GHC -Wno-unused-top-binds #-}
-{-# LANGUAGE LambdaCase #-}
 
 module Predicate(
     Pred(..),
@@ -14,6 +15,7 @@ import Parser
 import Sequent
 import Data.Maybe
 import System.Console.Haskeline
+import Data.Sequence (Seq(Empty))
 
 data Pred = Const Bool
           | Eql Term Term
@@ -167,9 +169,10 @@ data Symbol = Constant Char
             deriving (Read)
 
 instance Show Symbol where
-       show (Constant c) = [c]
-       show (Function f n) = f : "(" ++ show n ++ ")"
-       show (Relation r n) = r : "(" ++ show n ++ ")"
+   show :: Symbol -> String
+   show (Constant c) = [c]
+   show (Function f n) = f : "(" ++ show n ++ ")"
+   show (Relation r n) = r : "(" ++ show n ++ ")"
 
 arityP :: Parser Int
 arityP = do symbol "("
@@ -207,8 +210,57 @@ getArity c ((Constant sym):syms) = if c == sym then Just 0 else getArity c syms
 getArity c ((Function sym arity):syms) = if c == sym then Just arity else getArity c syms
 getArity c ((Relation sym arity):syms) = if c == sym then Just arity else getArity c syms
 
+data Rule = EmptyRule
+
+ruleP :: Parser Rule
+ruleP = return EmptyRule
+
+unaryRuleP :: [Symbol] -> String -> Parser Pred
+unaryRuleP syms rule = do symbol rule
+                          comma
+                          l1P syms
+
+binaryRuleP :: [Symbol] -> String -> Parser (Pred, Pred)
+binaryRuleP syms rule = do symbol rule
+                           comma
+                           p <- l1P syms
+                           comma
+                           q <- l1P syms
+                           return (p, q)
+
+evalR :: String -> Either String Rule
+evalR = eval ruleP
+
+data RuleApplication p = ErroneousApplication String
+                       | SingleApplication (Sequent p)
+                       | BranchingApplication (Sequent p) (Sequent p)
+
+setInsert :: Eq a => [a] -> a -> [a]
+setInsert xs x = if x `elem` xs then xs else xs ++ [x]
+
+errorBicond :: RuleApplication Pred
+errorBicond = ErroneousApplication "Function undefined for biconditionals"
+
+{- Rules -}
+
+applyRule :: [Symbol] -> Sequent Pred -> Rule -> RuleApplication Pred
+applyRule syms s r = ErroneousApplication ""
+
+applyRule' :: [Symbol] -> Sequent Pred -> IO Bool
+applyRule' syms s = do return True
+
+applyRule'' :: [Symbol] -> Sequent Pred -> IO Bool
+applyRule'' syms s = do return True
+
+getRule :: String -> IO Rule
+getRule text = do
+  input <- prompt text
+  case evalR input of
+    Right rule -> return rule
+    Left errMsg -> putStrLn errMsg >> getRule text
+
 prompt :: String -> IO String
-prompt text = runInputTWithPrefs defaultPrefs defaultSettings $ do
+prompt text = runInputT defaultSettings $ do
   getInputLine text >>= \case
     Nothing   -> return ""
     Just line -> return line
@@ -230,6 +282,9 @@ getSymbols p = do xs <- prompt p
 runEngine :: IO Bool
 runEngine = do syms <- getSymbols "Input a list of constant, function and relation symbols: "
                s <- getSequent syms "Input a sequent: "
-               print syms
-               print s
-               return True
+               case s of
+                 (_ `Entails` _) -> applyRule'' syms s
+                 (a `Biconditional` c) -> do
+                   res1 <- applyRule'' syms ([a] `Entails` c)
+                   res2 <- applyRule'' syms ([c] `Entails` a)
+                   return $ res1 && res2
