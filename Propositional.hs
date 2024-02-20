@@ -122,7 +122,7 @@ data Rule = EmptyRule
           | ImpElim    Prop Prop
           | OrIntroL   Prop Prop
           | OrIntroR   Prop Prop
-          | OrELim     Prop Prop -- (Sequent Prop) (Sequent Prop) -- xx
+          | OrELim     Prop -- (Sequent Prop) (Sequent Prop) -- xx
           | NotIntro -- (Sequent Prop) -- xx
           | NotELim    Prop Prop
           | TopIntro
@@ -146,8 +146,8 @@ ruleP = do (p, q) <- binaryRuleP "ANDI"
               return $ OrIntroL p q
        <|> do (p, q) <- binaryRuleP "ORIr"
               return $ OrIntroR p q
-       <|> do (p, q) <- binaryRuleP "ORE"
-              return $ OrELim p q
+       <|> do p <- unaryRuleP "ORE"
+              return $ OrELim p
        <|> do symbol "NOTI"
               return NotIntro
        <|> do (p, q) <- binaryRuleP "NOTE"
@@ -201,63 +201,53 @@ andI _ _ _ = errorBicond
 andEl :: Sequent Prop -> Prop -> RuleApplication Prop
 andEl (as `Entails` c) (p `And` q)
     | (p `And` q) `elem` as = SingleApplication (setInsert as p `Entails` c)
-    | otherwise = ErroneousApplication "andEl: AND proposition not in scope"
-andEl _ (_ `And` _) = errorBicond
-andEl _ _ = ErroneousApplication "andEl: AND proposition must be provided"
+    | otherwise = ErroneousApplication "Proposition not in scope"
+andEl (_ `Entails` _) _ = ErroneousApplication "Conjunctive proposition must be provided"
+andEl _ _ = errorBicond
 
 andEr :: Sequent Prop -> Prop -> RuleApplication Prop
-andEr (as `Entails` c) (p `And` q)
-    | (p `And` q) `elem` as = SingleApplication (setInsert as q `Entails` c)
-    | otherwise = ErroneousApplication "andEr: AND proposition not in scope"
-andEr _ (_ `And` _) = errorBicond
-andEr _ _ = ErroneousApplication "andEr: AND proposition must be provided"
+andEr s (p `And` q) = andEl s (q `And` p)
 
 impI :: Sequent Prop -> RuleApplication Prop
 impI (as `Entails` (p `Imp` q)) = SingleApplication ((p : as) `Entails` q)
-impI (_ `Entails` _) = ErroneousApplication "impI: Consequent must be an IMPLICATION"
+impI (_ `Entails` _) = ErroneousApplication "Consequent must be an implicative proposition"
 impI _ = errorBicond
 
 impE :: Sequent Prop -> Prop -> Prop -> RuleApplication Prop
 impE (as `Entails` c) (p `Imp` q) r
     | p == r = SingleApplication (setInsert as q `Entails` c)
-    | otherwise = ErroneousApplication "impE: Premise does not match provided proposition"
-impE (as `Entails` c) r (p `Imp` q)
-    | p == r = SingleApplication (setInsert as q `Entails` c)
-    | otherwise = ErroneousApplication "impE: Premise does not match provided proposition"
-impE (_ `Entails` _) _ _ = ErroneousApplication "impE: IMPLICATION proposition must be provided"
+    | otherwise = ErroneousApplication "Premise of provided implication does not match provided proposition"
+impE (as `Entails` c) r (p `Imp` q) = impE (as `Entails` c) (p `Imp` q) r
+impE (_ `Entails` _) _ _ = ErroneousApplication "Implication proposition must be provided"
 impE _ _ _ = errorBicond
 
 orIl :: Sequent Prop -> Prop -> Prop -> RuleApplication Prop
 orIl (as `Entails` c) p q
     | p `elem` as = SingleApplication (setInsert as (p `Or` q) `Entails` c)
-    | otherwise = ErroneousApplication "orIl: Proposition not in scope"
+    | otherwise = ErroneousApplication "Proposition not in scope"
 orIl _ _ _ = errorBicond
 
 orIr :: Sequent Prop -> Prop -> Prop -> RuleApplication Prop
-orIr (as `Entails` c) p q
-    | p `elem` as = SingleApplication (setInsert as (q `Or` p) `Entails` c)
-    | otherwise = ErroneousApplication "orIr: Proposition not in scope"
-orIr _ _ _ = errorBicond
+orIr s p q = orIl s q p
 
-orE :: Sequent Prop -> Prop -> Prop -> RuleApplication Prop
-orE (as `Entails` _) (p `Or` q) r
-    | (p `Or` q) `elem` as = BranchingApplication ((p :as) `Entails` r) ((q : as) `Entails` r)
-    | otherwise = ErroneousApplication "orE: Proposition not in scope"
-orE (_ `Entails` _) _ _ = ErroneousApplication "orE: OR proposition must be provided"
-orE _ _ _ = ErroneousApplication "orE: Function undefined for biconditionals"
+orE :: Sequent Prop -> Prop -> RuleApplication Prop
+orE (as `Entails` c) (p `Or` q)
+    | (p `Or` q) `elem` as = BranchingApplication ((p :as) `Entails` c) ((q : as) `Entails` c)
+    | otherwise = ErroneousApplication "Proposition not in scope"
+orE (_ `Entails` _) _ = ErroneousApplication "Consequent must be a disjunctive proposition"
+orE _ _ = errorBicond
 
 notI :: Sequent Prop -> RuleApplication Prop
 notI (as `Entails` (Not p)) = SingleApplication ((p : as) `Entails` Const False)
-notI (_ `Entails` _) = ErroneousApplication "notI: NOT proposition must be provided"
+notI (_ `Entails` _) = ErroneousApplication "Consequent must be a negative proposition"
 notI _ = errorBicond
 
 notE :: Sequent Prop -> Prop -> Prop -> RuleApplication Prop
 notE (as `Entails` c) p (Not q)
     | p `elem` as && Not q `elem` as && p == q = SingleApplication (setInsert as (Const False) `Entails` c)
-    | otherwise = ErroneousApplication "notE: One or both propositions are not in scope"
-notE (as `Entails` c) (Not q) p
-    | p `elem` as && Not q `elem` as && p == q = SingleApplication (setInsert as (Const False) `Entails` c)
-    | otherwise = ErroneousApplication "notE: One or both propositions are not in scope"
+    | p /= q = ErroneousApplication "Propositions must be negations of eachother"
+    | otherwise = ErroneousApplication "One or both propositions are not in scope"
+notE s (Not q) p = notE s p (Not q)
 notE _ _ _ = errorBicond
 
 topI :: Sequent Prop -> RuleApplication Prop
@@ -267,7 +257,7 @@ topI _ = errorBicond
 botE :: Sequent Prop -> Prop -> RuleApplication Prop
 botE (as `Entails` c) p
     | Const False `elem` as = SingleApplication (setInsert as p `Entails` c)
-    | otherwise = ErroneousApplication "botE: BOTTOM proposition not in scope"
+    | otherwise = ErroneousApplication "Bottom proposition not in scope"
 botE _ _ = errorBicond
 
 stmtI :: Sequent Prop -> Prop -> RuleApplication Prop
@@ -287,7 +277,7 @@ applyRule s rule = case rule of
        (ImpElim p q)  -> impE  s p q
        (OrIntroL p q) -> orIl  s p q
        (OrIntroR p q) -> orIr  s p q
-       (OrELim p q)   -> orE   s p q
+       (OrELim p)     -> orE   s p
        NotIntro       -> notI  s
        (NotELim p q)  -> notE  s p q
        TopIntro       -> topI  s
@@ -328,7 +318,7 @@ solved :: Sequent Prop -> Bool
 solved (as `Entails` c) = c `elem` as
 
 prompt :: String -> IO String
-prompt text = runInputT defaultSettings $ do
+prompt text = runInputTWithPrefs defaultPrefs defaultSettings $ do
   getInputLine text >>= \case
     Nothing   -> return ""
     Just line -> return line

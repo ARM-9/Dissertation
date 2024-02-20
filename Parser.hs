@@ -1,16 +1,18 @@
+{-# HLINT ignore "Use lambda-case" #-}
+
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# OPTIONS_GHC -Wno-unused-do-bind #-}
-{-# HLINT ignore "Use lambda-case" #-}
 {-# OPTIONS_GHC -Wno-unused-top-binds #-}
 
 module Parser(
     Parser,
-    parse,
     lower,
     upper,
     symbol,
+    number,
     comma,
     list,
+    listN,
     eval
 ) where
     
@@ -30,34 +32,41 @@ item = P $ \input ->
     (x:xs) -> Right (x, xs)
 
 instance Functor Parser where
+  fmap :: (a -> b) -> Parser a -> Parser b
   fmap g p = P $ \input ->
     case parse p input of
       Left msg       -> Left msg
       Right (val, out) -> Right (g val, out)
 
 instance Applicative Parser where
+  pure :: a -> Parser a
   pure v = P $ \input -> Right (v, input)
 
+  (<*>) :: Parser (a -> b) -> Parser a -> Parser b
   pg <*> px = P $ \input ->
     case parse pg input of
       Left msg       -> Left msg
       Right (g, out) -> parse (fmap g px) out
 
 instance Alternative Parser where
+  empty :: Parser a
   empty = P $ \_ -> Left "Failed parse"
 
+  (<|>) :: Parser a -> Parser a -> Parser a
   p <|> q = P $ \input ->
     case parse p input of
       Left _         -> parse q input
       Right (val, out) -> Right (val, out)
 
 instance Monad Parser where
+  (>>=) :: Parser a -> (a -> Parser b) -> Parser b
   p >>= f = P $ \input ->
     case parse p input of
       Left msg       -> Left msg
       Right (val, out) -> parse (f val) out
 
 instance MonadFail Parser where
+  fail :: String -> Parser a
   fail msg = P $ \_ -> Left msg
 
 sat :: (Char -> Bool) -> Parser Char
@@ -74,8 +83,8 @@ upper = sat isUpper
 letter :: Parser Char
 letter = sat isAlpha
 
-alphanum :: Parser Char
-alphanum = sat isAlphaNum
+digit :: Parser Char
+digit = sat isDigit
 
 char :: Char -> Parser Char
 char x = sat (== x)
@@ -95,6 +104,9 @@ token p = do space
 symbol :: String -> Parser String
 symbol = token . string
 
+number :: Parser Int
+number = some digit >>= \num -> return $ read num
+
 comma :: Parser String
 comma = symbol ","
 
@@ -103,6 +115,13 @@ list p = do x <- p
             xs <- many (comma >> p)
             return (x:xs)
 
+listN :: Int -> Parser a -> Parser [a]
+listN n p = do x <- p
+               do symbol ","
+                  xs <- listN (n-1) p
+                  return (x:xs)
+                <|> if n == 1 then return [x] else empty
+              
 eval :: Parser a -> String -> Either String a
 eval p xs =
   case parse p xs of 
