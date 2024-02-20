@@ -1,6 +1,7 @@
 {-# LANGUAGE InstanceSigs #-}
 {-# OPTIONS_GHC -Wno-unused-do-bind #-}
 {-# OPTIONS_GHC -Wno-unused-top-binds #-}
+{-# LANGUAGE LambdaCase #-}
 
 module Predicate(
     Pred(..),
@@ -12,6 +13,7 @@ import Control.Applicative hiding (Const)
 import Parser
 import Sequent
 import Data.Maybe
+import System.Console.Haskeline
 
 data Pred = Const Bool
           | Eql Term Term
@@ -162,7 +164,12 @@ evalS syms = eval (sequentP syms)
 data Symbol = Constant Char
             | Function Char Int
             | Relation Char Int
-            deriving (Show, Read, Eq)
+            deriving (Read)
+
+instance Show Symbol where
+       show (Constant c) = [c]
+       show (Function f n) = f : "(" ++ show n ++ ")"
+       show (Relation r n) = r : "(" ++ show n ++ ")"
 
 arityP :: Parser Int
 arityP = do symbol "("
@@ -174,29 +181,15 @@ symP :: [Symbol] -> Parser Symbol
 symP syms = do r <- upper
                if isJust $ getArity r syms
                   then empty
-               else do n <- arityP
-                       let rel = Relation r n
-                       if rel `elem` syms then
-                          empty
-                       else
-                          return rel
+               else Relation r <$> arityP
             <|> do f <- lower
                    if isJust $ getArity f syms
                       then empty
-                   else do n <- arityP
-                           let func = Function f n
-                           if func `elem` syms then
-                              empty
-                           else
-                              return func
+                   else Function f <$> arityP
             <|> do c <- lower
                    if isJust $ getArity c syms
                       then empty
-                   else do let const = Constant c
-                           if const `elem` syms then
-                              empty
-                           else
-                              return const
+                   else return $ Constant c
 
 symsP :: [Symbol] -> Parser [Symbol]
 symsP syms = do sym <- symP syms
@@ -205,9 +198,38 @@ symsP syms = do sym <- symP syms
                    return (sym:others)
                  <|> return [sym]
 
+evalSyms :: String -> Either String [Symbol]
+evalSyms = eval (symsP [])
+
 getArity :: Char -> [Symbol] -> Maybe Int
 getArity _ [] = Nothing
 getArity c ((Constant sym):syms) = if c == sym then Just 0 else getArity c syms
 getArity c ((Function sym arity):syms) = if c == sym then Just arity else getArity c syms
 getArity c ((Relation sym arity):syms) = if c == sym then Just arity else getArity c syms
 
+prompt :: String -> IO String
+prompt text = runInputTWithPrefs defaultPrefs defaultSettings $ do
+  getInputLine text >>= \case
+    Nothing   -> return ""
+    Just line -> return line
+
+getSequent :: [Symbol] -> String -> IO (Sequent Pred)
+getSequent syms p = do xs <- prompt p
+                       let s = evalS syms xs
+                       case s of
+                         (Right s) -> return s
+                         (Left errMsg) -> putStrLn errMsg >> getSequent syms p
+
+getSymbols :: String -> IO [Symbol]
+getSymbols p = do xs <- prompt p
+                  let s = evalSyms xs
+                  case s of
+                     (Right s) -> return s
+                     (Left errMsg) -> putStrLn errMsg >> getSymbols p
+
+runEngine :: IO Bool
+runEngine = do syms <- getSymbols "Input a list of constant, function and relation symbols: "
+               s <- getSequent syms "Input a sequent: "
+               print syms
+               print s
+               return True

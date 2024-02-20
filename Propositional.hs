@@ -309,9 +309,7 @@ getRule text = do
   input <- prompt text
   case evalR input of
     Right rule -> return rule
-    Left errMsg -> do
-      putStrLn errMsg
-      getRule text
+    Left errMsg -> putStrLn errMsg >> getRule text
 
 -- Inititially included BOTTOM
 solved :: Sequent Prop -> Bool
@@ -328,7 +326,7 @@ getSequent p = do xs <- prompt p
                   let s = evalS xs
                   case s of
                     (Right s) -> return s
-                    (Left errMsg) -> getSequent p
+                    (Left errMsg) -> putStrLn errMsg >> getSequent p
 
 runEngine :: IO Bool
 runEngine = do s <- getSequent "Input a sequent: "
