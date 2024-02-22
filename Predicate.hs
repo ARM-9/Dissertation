@@ -15,7 +15,6 @@ import Parser
 import Sequent
 import Data.Maybe
 import System.Console.Haskeline
-import Data.Sequence (Seq(Empty))
 
 data Pred = Const Bool
           | Eql Term Term
@@ -89,7 +88,7 @@ l4P syms = do symbol "NOT" <|> symbol "¬"
               Not <$> l4P syms
            <|> do symbol "ALL" <|> symbol "∀"
                   v <- lower
-                  let arity = getArity v syms
+                  let arity = getArity v syms -- TODO: Make isConst function to increase clarity
                   if isJust arity then
                      empty
                   else All v <$> l4P syms
@@ -118,9 +117,9 @@ l5P syms = do s <- upper
              p <- l1P syms
              symbol ")"
              return p
-      <|> do l <- term []
+      <|> do l <- term syms
              symbol "="
-             r <- term []
+             r <- term syms
              return $ l `Eql` r
 
 term :: [Symbol] -> Parser Term
@@ -200,6 +199,8 @@ symsP syms = do sym <- symP syms
                    others <- symsP (sym:syms)
                    return (sym:others)
                  <|> return [sym]
+             <|> do symbol "-"
+                    return []
 
 evalSyms :: String -> Either String [Symbol]
 evalSyms = eval (symsP [])
@@ -211,9 +212,51 @@ getArity c ((Function sym arity):syms) = if c == sym then Just arity else getAri
 getArity c ((Relation sym arity):syms) = if c == sym then Just arity else getArity c syms
 
 data Rule = EmptyRule
+          | AndIntro   Pred Pred
+          | AndElimL   Pred
+          | AndElimR   Pred
+          | ImpIntro -- (Sequent Pred) -- xx
+          | ImpElim    Pred Pred
+          | OrIntroL   Pred Pred
+          | OrIntroR   Pred Pred
+          | OrELim     Pred -- (Sequent Pred) (Sequent Pred) -- xx
+          | NotIntro -- (Sequent Pred) -- xx
+          | NotELim    Pred Pred
+          | TopIntro
+          | BottomElim Pred
+          | StmtIntro  Pred
+          | Pbc -- (Sequent Pred) -- xx
+          deriving (Show, Read)
 
-ruleP :: Parser Rule
-ruleP = return EmptyRule
+ruleP :: [Symbol] -> Parser Rule
+ruleP syms = do (p, q) <- binaryRuleP syms "ANDI"
+                return $ AndIntro p q
+             <|> do p <- unaryRuleP syms "ANDEl"
+                    return $ AndElimL p
+             <|> do p <- unaryRuleP syms "ANDEr"
+                    return $ AndElimR p
+             <|> do symbol "IMPI"
+                    return ImpIntro
+             <|> do (p, q) <- binaryRuleP syms "IMPE"
+                    return $ ImpElim p q
+             <|> do (p, q) <- binaryRuleP syms "ORIl"
+                    return $ OrIntroL p q
+             <|> do (p, q) <- binaryRuleP syms "ORIr"
+                    return $ OrIntroR p q
+             <|> do p <- unaryRuleP syms "ORE"
+                    return $ OrELim p
+             <|> do symbol "NOTI"
+                    return NotIntro
+             <|> do (p, q) <- binaryRuleP syms "NOTE"
+                    return $ NotELim p q
+             <|> do symbol "TOPI"
+                    return TopIntro
+             <|> do p <- unaryRuleP syms "BOTE"
+                    return $ BottomElim p
+             <|> do p <- unaryRuleP syms "STMTI"
+                    return $ StmtIntro p
+             <|> do p <- symbol "PBC"
+                    return Pbc
 
 unaryRuleP :: [Symbol] -> String -> Parser Pred
 unaryRuleP syms rule = do symbol rule
@@ -228,8 +271,8 @@ binaryRuleP syms rule = do symbol rule
                            q <- l1P syms
                            return (p, q)
 
-evalR :: String -> Either String Rule
-evalR = eval ruleP
+evalR :: [Symbol] -> String -> Either String Rule
+evalR syms = eval (ruleP syms)
 
 data RuleApplication p = ErroneousApplication String
                        | SingleApplication (Sequent p)
@@ -241,23 +284,127 @@ setInsert xs x = if x `elem` xs then xs else xs ++ [x]
 errorBicond :: RuleApplication Pred
 errorBicond = ErroneousApplication "Function undefined for biconditionals"
 
-{- Rules -}
+andI :: Sequent Pred -> Pred -> Pred -> RuleApplication Pred
+andI (as `Entails` c) p q
+    | p `elem` as && q `elem` as = SingleApplication (setInsert as (p `And` q) `Entails` c)
+    | otherwise = ErroneousApplication "One or both propositions are not in scope"
+andI _ _ _ = errorBicond
 
-applyRule :: [Symbol] -> Sequent Pred -> Rule -> RuleApplication Pred
-applyRule syms s r = ErroneousApplication ""
+andEl :: Sequent Pred -> Pred -> RuleApplication Pred
+andEl (as `Entails` c) (p `And` q)
+    | (p `And` q) `elem` as = SingleApplication (setInsert as p `Entails` c)
+    | otherwise = ErroneousApplication "Predosition not in scope"
+andEl (_ `Entails` _) _ = ErroneousApplication "Conjunctive proposition must be provided"
+andEl _ _ = errorBicond
+
+andEr :: Sequent Pred -> Pred -> RuleApplication Pred
+andEr s (p `And` q) = andEl s (q `And` p)
+
+impI :: Sequent Pred -> RuleApplication Pred
+impI (as `Entails` (p `Imp` q)) = SingleApplication ((p : as) `Entails` q)
+impI (_ `Entails` _) = ErroneousApplication "Consequent must be an implicative proposition"
+impI _ = errorBicond
+
+impE :: Sequent Pred -> Pred -> Pred -> RuleApplication Pred
+impE (as `Entails` c) (p `Imp` q) r
+    | p == r = SingleApplication (setInsert as q `Entails` c)
+    | otherwise = ErroneousApplication "Premise of provided implication does not match provided proposition"
+impE (as `Entails` c) r (p `Imp` q) = impE (as `Entails` c) (p `Imp` q) r
+impE (_ `Entails` _) _ _ = ErroneousApplication "Implication proposition must be provided"
+impE _ _ _ = errorBicond
+
+orIl :: Sequent Pred -> Pred -> Pred -> RuleApplication Pred
+orIl (as `Entails` c) p q
+    | p `elem` as = SingleApplication (setInsert as (p `Or` q) `Entails` c)
+    | otherwise = ErroneousApplication "Predosition not in scope"
+orIl _ _ _ = errorBicond
+
+orIr :: Sequent Pred -> Pred -> Pred -> RuleApplication Pred
+orIr s p q = orIl s q p
+
+orE :: Sequent Pred -> Pred -> RuleApplication Pred
+orE (as `Entails` c) (p `Or` q)
+    | (p `Or` q) `elem` as = BranchingApplication ((p :as) `Entails` c) ((q : as) `Entails` c)
+    | otherwise = ErroneousApplication "Predosition not in scope"
+orE (_ `Entails` _) _ = ErroneousApplication "Consequent must be a disjunctive proposition"
+orE _ _ = errorBicond
+
+notI :: Sequent Pred -> RuleApplication Pred
+notI (as `Entails` (Not p)) = SingleApplication ((p : as) `Entails` Const False)
+notI (_ `Entails` _) = ErroneousApplication "Consequent must be a negative proposition"
+notI _ = errorBicond
+
+notE :: Sequent Pred -> Pred -> Pred -> RuleApplication Pred
+notE (as `Entails` c) p (Not q)
+    | p `elem` as && Not q `elem` as && p == q = SingleApplication (setInsert as (Const False) `Entails` c)
+    | p /= q = ErroneousApplication "Predositions must be negations of eachother"
+    | otherwise = ErroneousApplication "One or both propositions are not in scope"
+notE s (Not q) p = notE s p (Not q)
+notE _ _ _ = errorBicond
+
+topI :: Sequent Pred -> RuleApplication Pred
+topI (as `Entails` c) = SingleApplication (setInsert as (Const True) `Entails` c)
+topI _ = errorBicond
+
+botE :: Sequent Pred -> Pred -> RuleApplication Pred
+botE (as `Entails` c) p
+    | Const False `elem` as = SingleApplication (setInsert as p `Entails` c)
+    | otherwise = ErroneousApplication "Bottom proposition not in scope"
+botE _ _ = errorBicond
+
+stmtI :: Sequent Pred -> Pred -> RuleApplication Pred
+stmtI (as `Entails` c) p = BranchingApplication (as `Entails` p) (setInsert as p `Entails` c)
+stmtI _ _ = errorBicond
+
+pbc :: Sequent Pred -> RuleApplication Pred
+pbc (as `Entails` c) = SingleApplication ((Not c : as) `Entails` Const False)
+pbc _ = errorBicond
+
+applyRule :: Sequent Pred -> Rule -> RuleApplication Pred
+applyRule s rule = case rule of
+       (AndIntro p q) -> andI  s p q
+       (AndElimL p)   -> andEl s p
+       (AndElimR p)   -> andEr s p
+       ImpIntro       -> impI  s
+       (ImpElim p q)  -> impE  s p q
+       (OrIntroL p q) -> orIl  s p q
+       (OrIntroR p q) -> orIr  s p q
+       (OrELim p)     -> orE   s p
+       NotIntro       -> notI  s
+       (NotELim p q)  -> notE  s p q
+       TopIntro       -> topI  s
+       (BottomElim p) -> botE  s p
+       (StmtIntro p)  -> stmtI s p
+       Pbc            -> pbc   s
 
 applyRule' :: [Symbol] -> Sequent Pred -> IO Bool
-applyRule' syms s = do return True
+applyRule' syms s = do
+  print s
+  r <- getRule syms "Enter a rule: "
+  let ruleApl = applyRule s r
+  case ruleApl of
+    ErroneousApplication str -> do
+      putStrLn $ "Error: " ++ str
+      applyRule' syms s
+    SingleApplication s1 -> do
+       applyRule'' syms s1
+    BranchingApplication s1 s2 -> do
+       result1 <- applyRule'' syms s1
+       result2 <- applyRule'' syms s2
+       return $ result1 && result2
 
 applyRule'' :: [Symbol] -> Sequent Pred -> IO Bool
-applyRule'' syms s = do return True
+applyRule'' syms s = do if solved s then return True else applyRule' syms s
 
-getRule :: String -> IO Rule
-getRule text = do
+getRule :: [Symbol] -> String -> IO Rule
+getRule syms text = do
   input <- prompt text
-  case evalR input of
+  case evalR syms input of
     Right rule -> return rule
-    Left errMsg -> putStrLn errMsg >> getRule text
+    Left errMsg -> putStrLn errMsg >> getRule syms text
+
+solved :: Sequent Pred -> Bool
+solved (as `Entails` c) = c `elem` as
 
 prompt :: String -> IO String
 prompt text = runInputT defaultSettings $ do

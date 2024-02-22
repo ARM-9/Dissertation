@@ -110,6 +110,7 @@ number = some digit >>= \num -> return $ read num
 comma :: Parser String
 comma = symbol ","
 
+-- TODO: Make list parser accomdate for empty lists
 list :: Parser a -> Parser [a]
 list p = do x <- p
             xs <- many (comma >> p)
