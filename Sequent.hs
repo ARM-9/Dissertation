@@ -6,6 +6,13 @@ module Sequent(
 ) where
 import Data.List (intercalate)
 
+-- class Sequent p where
+--   freeVars :: [Formula p]
+--   freeVars = []
+
+--   premises :: p -> [Formula p]
+--   consequent :: p -> Formula p
+
 data Sequent p = [p] `Entails` p
                | p `Biconditional` p
              deriving (Read)

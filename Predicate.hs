@@ -38,7 +38,7 @@ instance Show Pred where
   show (x `Or` y)  = "(" ++ show x ++ " ∨ " ++ show y ++ ")"
   show (x `Imp` y) = "(" ++ show x ++ " → " ++ show y ++ ")"
   show (x `Equi` y) = "(" ++ show x ++ " ↔ " ++ show y ++ ")"
-  show (x `All` y) = "∀" ++ [x] ++ "." ++ show y
+  show (All x y) = "∀" ++ [x] ++ "." ++ show y
   show (Exi x y) = "∃" ++ [x] ++ "." ++ show y
 
 data Term = Var Char
@@ -55,6 +55,68 @@ instance Show Term where
 arguments :: Show t => [t] -> String
 arguments [] = ""
 arguments ts = "(" ++ intercalate ", " (map show ts) ++ ")"
+
+rmDupes :: Eq a => [a] -> [a]
+rmDupes [] = []
+rmDupes (x:xs) = if x `elem` xs then rmDupes xs else x : rmDupes xs
+
+vars :: Pred -> [Term]
+vars (Const _) = []
+vars (x `Eql` y) = varsT x ++ varsT y
+vars (Rel _ ts) = concatMap varsT ts
+vars (Not p) = vars p
+vars (p `And` q) = vars p ++ vars q
+vars (p `Or` q) = vars p ++ vars q
+vars (p `Imp` q) = vars p ++ vars q
+vars (p `Equi` q) = vars p ++ vars q
+vars (All _ p) = vars p
+vars (Exi _ p) = vars p
+
+varsT :: Term -> [Term]
+varsT (Var v) = [Var v]
+varsT (ConstT _) = []
+varsT (Func _ ts) = concatMap varsT ts
+
+freeVars :: Pred -> [Term]
+freeVars (Const _) = []
+freeVars (x `Eql` y) = varsT x ++ varsT y
+freeVars (Rel _ ts) = concatMap varsT ts
+freeVars (Not p) = freeVars p
+freeVars (p `And` q) = freeVars p ++ freeVars q
+freeVars (p `Or` q) = freeVars p ++ freeVars q
+freeVars (p `Imp` q) = freeVars p ++ freeVars q
+freeVars (p `Equi` q) = freeVars p ++ freeVars q
+freeVars (All v p) = filter (/= Var v) (freeVars p)
+freeVars (Exi v p) = filter (/= Var v) (freeVars p)
+
+boundVars :: Pred -> [Term]
+boundVars (Const _) = []
+boundVars (x `Eql` y) = []
+boundVars (Rel _ _) = []
+boundVars (Not p) = boundVars p
+boundVars (p `And` q) = boundVars p ++ boundVars q
+boundVars (p `Or` q) = boundVars p ++ boundVars q
+boundVars (p `Imp` q) = boundVars p ++ boundVars q
+boundVars (p `Equi` q) = boundVars p ++ boundVars q
+boundVars (All v p) = boundVars p ++ filter (/= Var v) (freeVars p)
+boundVars (Exi v p) = boundVars p ++ filter (/= Var v) (freeVars p)
+
+sub :: Term -> Term -> Pred -> Pred
+sub _ _ (Const x) = Const x
+sub t v (x `Eql` y) = subT t v x `Eql` subT t v x
+sub t v (Rel x ts) = Rel x (map (subT t v) ts)
+sub t v (Not p) = Not (sub t v p)
+sub t v (p `And` q) = sub t v p `And` sub t v q
+sub t v (p `Or` q) = sub t v p `And` sub t v q
+sub t v (p `Imp` q) = sub t v p `And` sub t v q
+sub t v (p `Equi` q) = sub t v p `And` sub t v q
+sub t v (All x p) = if v == Var x then All x p else All x (sub t v p)
+sub t v (Exi x p) = if v == Var x then Exi x p else Exi x (sub t v p)
+
+subT :: Term -> Term -> Term -> Term
+subT t (Var x) (Var y) = if x == y then t else Var x
+subT _ _ (ConstT c) = ConstT c
+subT t v (Func f ts) = Func f (map (subT t v) ts)
 
 l1P :: [Symbol] -> Parser Pred
 l1P syms = do l <- l2P syms
@@ -435,3 +497,9 @@ runEngine = do syms <- getSymbols "Input a list of constant, function and relati
                    res1 <- applyRule'' syms ([a] `Entails` c)
                    res2 <- applyRule'' syms ([c] `Entails` a)
                    return $ res1 && res2
+
+runEngine' :: IO ()
+runEngine' = do syms <- getSymbols "Input a list of constant, function and relation symbols: "
+                (x `Entails` y) <- getSequent syms "Input a sequent: "
+                print $ rmDupes (vars y)
+                return ()
