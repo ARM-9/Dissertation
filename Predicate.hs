@@ -98,8 +98,8 @@ boundVars (p `And` q) = boundVars p ++ boundVars q
 boundVars (p `Or` q) = boundVars p ++ boundVars q
 boundVars (p `Imp` q) = boundVars p ++ boundVars q
 boundVars (p `Equi` q) = boundVars p ++ boundVars q
-boundVars (All v p) = boundVars p ++ filter (/= Var v) (freeVars p)
-boundVars (Exi v p) = boundVars p ++ filter (/= Var v) (freeVars p)
+boundVars (All v p) = boundVars p ++ filter (== Var v) (freeVars p)
+boundVars (Exi v p) = boundVars p ++ filter (== Var v) (freeVars p)
 
 sub :: Term -> Term -> Pred -> Pred
 sub _ _ (Const x) = Const x
@@ -111,10 +111,10 @@ sub t v (p `Or` q) = sub t v p `And` sub t v q
 sub t v (p `Imp` q) = sub t v p `And` sub t v q
 sub t v (p `Equi` q) = sub t v p `And` sub t v q
 sub t v (All x p) = if v == Var x then All x p else All x (sub t v p)
-sub t v (Exi x p) = if v == Var x then Exi x p else Exi x (sub t v p)
+sub t v (Exi x p) = if v == Var x then All x p else All x (sub t v p)
 
 subT :: Term -> Term -> Term -> Term
-subT t (Var x) (Var y) = if x == y then t else Var x
+subT t (Var x) (Var y) = if x == y then t else Var y
 subT _ _ (ConstT c) = ConstT c
 subT t v (Func f ts) = Func f (map (subT t v) ts)
 
@@ -184,6 +184,9 @@ l5P syms = do s <- upper
              r <- term syms
              return $ l `Eql` r
 
+evalF :: [Symbol] -> String -> Either String Pred
+evalF syms = eval (l1P syms)
+
 term :: [Symbol] -> Parser Term
 term syms = do s <- lower
                let arity = getArity s syms
@@ -202,8 +205,8 @@ term syms = do s <- lower
              else
                 empty
 
-evalF :: [Symbol] -> String -> Either String Pred
-evalF syms = eval (l1P syms)
+evalT :: [Symbol] -> String -> Either String Term
+evalT syms = eval (term syms)
 
 sequentP :: [Symbol] -> Parser (Sequent Pred)
 sequentP syms = do l <- l1P syms
@@ -481,6 +484,20 @@ getSequent syms p = do xs <- prompt p
                          (Right s) -> return s
                          (Left errMsg) -> putStrLn errMsg >> getSequent syms p
 
+getPred :: [Symbol] -> String -> IO Pred
+getPred syms p = do xs <- prompt p
+                    let s = evalF syms xs
+                    case s of
+                       (Right s) -> return s
+                       (Left errMsg) -> putStrLn errMsg >> getPred syms p
+
+getTerm :: [Symbol] -> String -> IO Term
+getTerm syms p = do xs <- prompt p
+                    let s = evalT syms xs
+                    case s of
+                       (Right s) -> return s
+                       (Left errMsg) -> putStrLn errMsg >> getTerm syms p
+
 getSymbols :: String -> IO [Symbol]
 getSymbols p = do xs <- prompt p
                   let s = evalSyms xs
@@ -500,6 +517,12 @@ runEngine = do syms <- getSymbols "Input a list of constant, function and relati
 
 runEngine' :: IO ()
 runEngine' = do syms <- getSymbols "Input a list of constant, function and relation symbols: "
-                (x `Entails` y) <- getSequent syms "Input a sequent: "
-                print $ rmDupes (vars y)
+                x <- getPred syms "Input a predicate formula: "
+                t <- getTerm syms "Enter a term to sub in: "
+                v <- getTerm syms "Enter a variable to sub: "
+                print x
+                print $ rmDupes (vars x)
+                print $ rmDupes (freeVars x)
+                print $ rmDupes (boundVars x)
+                print $ sub t v x
                 return ()
