@@ -9,12 +9,16 @@ module Predicate(
     Term(..),
 ) where
 
-import Data.List (intercalate)
+import Data.List (intercalate, nub)
 import Control.Applicative hiding (Const)
 import Parser
-import Sequent
 import Data.Maybe
 import System.Console.Haskeline
+import GHC.OldList(intersect)
+
+arguments :: Show t => [t] -> String
+arguments [] = ""
+arguments ts = "(" ++ intercalate ", " (map show ts) ++ ")"
 
 data Pred = Const Bool
           | Eql Term Term
@@ -26,7 +30,7 @@ data Pred = Const Bool
           | Equi Pred Pred
           | All  Char Pred
           | Exi  Char Pred
-          deriving (Read, Eq)
+          deriving (Read)
 
 instance Show Pred where
   show :: Pred -> String
@@ -41,24 +45,39 @@ instance Show Pred where
   show (All x y) = "∀" ++ [x] ++ "." ++ show y
   show (Exi x y) = "∃" ++ [x] ++ "." ++ show y
 
-data Term = Var Char
+instance Eq Pred where
+  (==) :: Pred -> Pred -> Bool
+  (Const x)    == (Const y)    =  x == y
+  (p `Eql` q)  == (r `Eql` s)  = (p == r && q == s) || (p == s && q == r)
+  (Rel x ss)   == (Rel y ts)   =  x == y && ss == ts
+  (Not p)      == (Not q)      =  p == q
+  (p `And` q)  == (r `And` s)  = (p == r && q == s) || (p == s && q == r)
+  (p `Or` q)   == (r `Or` s)   = (p == r && q == s) || (p == s && q == r)
+  (p `Imp` q)  == (r `Imp` s)  =  p == r && q == s
+  (p `Equi` q) == (r `Equi` s) = (p == r && q == s) || (p == s && q == r)
+  (All v p)    == (All u q)    =  v == u && p == q
+  (Exi v p)    == (Exi u q)    =  v == u && p == q
+  _            == _            =  False
+
+data Term = FreeVar Int
+          | Var Char
           | ConstT Char
           | Func Char [Term]
-          deriving (Read, Eq)
+          deriving (Read)
 
 instance Show Term where
   show :: Term -> String
+  show (FreeVar x) = show x
   show (Var x) = [x]
   show (ConstT x) = [x]
   show (Func f xs) = f : arguments xs
 
-arguments :: Show t => [t] -> String
-arguments [] = ""
-arguments ts = "(" ++ intercalate ", " (map show ts) ++ ")"
-
-rmDupes :: Eq a => [a] -> [a]
-rmDupes [] = []
-rmDupes (x:xs) = if x `elem` xs then rmDupes xs else x : rmDupes xs
+instance Eq Term where
+  (==) :: Term -> Term -> Bool
+  (FreeVar x) == (FreeVar y) = x == y
+  (Var x)     == (Var y)     = x == y
+  (ConstT x)  == (ConstT y)  = x == y
+  (Func f xs) == (Func g ys) = f == g && xs == ys
 
 vars :: Pred -> [Term]
 vars (Const _) = []
@@ -73,6 +92,7 @@ vars (All _ p) = vars p
 vars (Exi _ p) = vars p
 
 varsT :: Term -> [Term]
+varsT (FreeVar v) = [FreeVar v]
 varsT (Var v) = [Var v]
 varsT (ConstT _) = []
 varsT (Func _ ts) = concatMap varsT ts
@@ -117,6 +137,18 @@ subT :: Term -> Term -> Term -> Term
 subT t (Var x) (Var y) = if x == y then t else Var y
 subT _ _ (ConstT c) = ConstT c
 subT t v (Func f ts) = Func f (map (subT t v) ts)
+
+data Sequent p = ([Term], [p]) `Entails` p
+               | ([Term], p) `Biconditional` p
+             deriving (Read)
+
+-- TODO: show the current free variable infront of the sequent
+instance Show a => Show (Sequent a) where
+  show :: Sequent a -> String
+  show ((_, antecedents) `Entails` consequent) =
+    intercalate ", " [show antecedents] ++ " ⊢ " ++ show consequent
+  show ((_, antecedent) `Biconditional` consequent) =
+    show antecedent ++ " ⟛ " ++ show consequent
 
 l1P :: [Symbol] -> Parser Pred
 l1P syms = do l <- l2P syms
@@ -187,6 +219,12 @@ l5P syms = do s <- upper
 evalF :: [Symbol] -> String -> Either String Pred
 evalF syms = eval (l1P syms)
 
+-- TODO: User can input any number they
+-- feel like as the FreeVar
+-- This is unacceptable
+-- Possibly make a bespoke variable
+-- parser that takes in the current list
+-- oor vars to parse from to recitfy this
 term :: [Symbol] -> Parser Term
 term syms = do s <- lower
                let arity = getArity s syms
@@ -202,8 +240,8 @@ term syms = do s <- lower
                 return $ Var x
              else if fromJust arity == 0 then
                      return $ ConstT x
-             else
-                empty
+             else empty
+      <|> do FreeVar <$> number
 
 evalT :: [Symbol] -> String -> Either String Term
 evalT syms = eval (term syms)
@@ -212,17 +250,17 @@ sequentP :: [Symbol] -> Parser (Sequent Pred)
 sequentP syms = do l <- l1P syms
                    do symbol "|-" <|> symbol "⊢"
                       r <- l1P syms
-                      return ([l] `Entails` r)
+                      return (([], [l]) `Entails` r)
                     <|> do symbol "-||-" <|> symbol "⟛"
                            r <- l1P syms
-                           return (l `Biconditional` r)
+                           return (([], l) `Biconditional` r)
                 <|> do ls <- list $ l1P syms
                        symbol "|-" <|> symbol "⊢"
                        r <- l1P syms
-                       return (ls `Entails` r)
+                       return (([], ls) `Entails` r)
                 <|> do symbol "|-" <|> symbol "⊢"
                        r <- l1P syms
-                       return ([] `Entails` r)
+                       return (([], []) `Entails` r)
 
 evalS :: [Symbol] -> String -> Either String (Sequent Pred)
 evalS syms = eval (sequentP syms)
@@ -289,6 +327,10 @@ data Rule = EmptyRule
           | NotELim    Pred Pred
           | TopIntro
           | BottomElim Pred
+          | AllIntro
+          | AllElim Pred Term
+          | ExiIntro Pred Term Char
+          | ExiElim Pred Pred
           | StmtIntro  Pred
           | Pbc -- (Sequent Pred) -- xx
           deriving (Show, Read)
@@ -318,6 +360,23 @@ ruleP syms = do (p, q) <- binaryRuleP syms "ANDI"
                     return TopIntro
              <|> do p <- unaryRuleP syms "BOTE"
                     return $ BottomElim p
+             <|> do symbol "ALLI"
+                    return AllIntro
+             <|> do symbol "ALLE"
+                    comma
+                    p <- l1P syms
+                    comma
+                    t <- term syms
+                    return $ AllElim p t
+             <|> do symbol "EXII"
+                    comma
+                    p <- l1P syms
+                    comma
+                    t <- term syms
+                    comma
+                    ExiIntro p t <$> lower
+             <|> do (p, q) <- binaryRuleP syms "NOTE"
+                    return $ ExiElim p q
              <|> do p <- unaryRuleP syms "STMTI"
                     return $ StmtIntro p
              <|> do p <- symbol "PBC"
@@ -343,6 +402,13 @@ data RuleApplication p = ErroneousApplication String
                        | SingleApplication (Sequent p)
                        | BranchingApplication (Sequent p) (Sequent p)
 
+isFree :: Term -> Bool
+isFree (FreeVar _) = True
+isFree _ = False
+
+newFreeVar :: [Term] -> Term
+newFreeVar vs = FreeVar $ length (filter isFree vs)
+
 setInsert :: Eq a => [a] -> a -> [a]
 setInsert xs x = if x `elem` xs then xs else xs ++ [x]
 
@@ -350,14 +416,14 @@ errorBicond :: RuleApplication Pred
 errorBicond = ErroneousApplication "Function undefined for biconditionals"
 
 andI :: Sequent Pred -> Pred -> Pred -> RuleApplication Pred
-andI (as `Entails` c) p q
-    | p `elem` as && q `elem` as = SingleApplication (setInsert as (p `And` q) `Entails` c)
+andI ((vs, as) `Entails` c) p q
+    | p `elem` as && q `elem` as = SingleApplication ((vs, setInsert as (p `And` q)) `Entails` c)
     | otherwise = ErroneousApplication "One or both propositions are not in scope"
 andI _ _ _ = errorBicond
 
 andEl :: Sequent Pred -> Pred -> RuleApplication Pred
-andEl (as `Entails` c) (p `And` q)
-    | (p `And` q) `elem` as = SingleApplication (setInsert as p `Entails` c)
+andEl ((vs, as) `Entails` c) (p `And` q)
+    | (p `And` q) `elem` as = SingleApplication ((vs, setInsert as p) `Entails` c)
     | otherwise = ErroneousApplication "Predosition not in scope"
 andEl (_ `Entails` _) _ = ErroneousApplication "Conjunctive proposition must be provided"
 andEl _ _ = errorBicond
@@ -366,21 +432,21 @@ andEr :: Sequent Pred -> Pred -> RuleApplication Pred
 andEr s (p `And` q) = andEl s (q `And` p)
 
 impI :: Sequent Pred -> RuleApplication Pred
-impI (as `Entails` (p `Imp` q)) = SingleApplication ((p : as) `Entails` q)
+impI ((vs, as) `Entails` (p `Imp` q)) = SingleApplication ((vs, p : as) `Entails` q)
 impI (_ `Entails` _) = ErroneousApplication "Consequent must be an implicative proposition"
 impI _ = errorBicond
 
 impE :: Sequent Pred -> Pred -> Pred -> RuleApplication Pred
-impE (as `Entails` c) (p `Imp` q) r
-    | p == r = SingleApplication (setInsert as q `Entails` c)
+impE ((vs, as) `Entails` c) (p `Imp` q) r
+    | p == r = SingleApplication ((vs, setInsert as q) `Entails` c)
     | otherwise = ErroneousApplication "Premise of provided implication does not match provided proposition"
-impE (as `Entails` c) r (p `Imp` q) = impE (as `Entails` c) (p `Imp` q) r
+impE ((vs, as) `Entails` c) r (p `Imp` q) = impE ((vs, as) `Entails` c) (p `Imp` q) r
 impE (_ `Entails` _) _ _ = ErroneousApplication "Implication proposition must be provided"
 impE _ _ _ = errorBicond
 
 orIl :: Sequent Pred -> Pred -> Pred -> RuleApplication Pred
-orIl (as `Entails` c) p q
-    | p `elem` as = SingleApplication (setInsert as (p `Or` q) `Entails` c)
+orIl ((vs, as) `Entails` c) p q
+    | p `elem` as = SingleApplication ((vs, setInsert as (p `Or` q)) `Entails` c)
     | otherwise = ErroneousApplication "Predosition not in scope"
 orIl _ _ _ = errorBicond
 
@@ -388,41 +454,54 @@ orIr :: Sequent Pred -> Pred -> Pred -> RuleApplication Pred
 orIr s p q = orIl s q p
 
 orE :: Sequent Pred -> Pred -> RuleApplication Pred
-orE (as `Entails` c) (p `Or` q)
-    | (p `Or` q) `elem` as = BranchingApplication ((p :as) `Entails` c) ((q : as) `Entails` c)
+orE ((vs, as) `Entails` c) (p `Or` q)
+    | (p `Or` q) `elem` as = BranchingApplication ((vs, p:as) `Entails` c) ((vs, q:as) `Entails` c)
     | otherwise = ErroneousApplication "Predosition not in scope"
 orE (_ `Entails` _) _ = ErroneousApplication "Consequent must be a disjunctive proposition"
 orE _ _ = errorBicond
 
 notI :: Sequent Pred -> RuleApplication Pred
-notI (as `Entails` (Not p)) = SingleApplication ((p : as) `Entails` Const False)
+notI ((vs, as) `Entails` (Not p)) = SingleApplication ((vs, p:as) `Entails` Const False)
 notI (_ `Entails` _) = ErroneousApplication "Consequent must be a negative proposition"
 notI _ = errorBicond
 
 notE :: Sequent Pred -> Pred -> Pred -> RuleApplication Pred
-notE (as `Entails` c) p (Not q)
-    | p `elem` as && Not q `elem` as && p == q = SingleApplication (setInsert as (Const False) `Entails` c)
+notE ((vs, as) `Entails` c) p (Not q)
+    | p `elem` as && Not q `elem` as && p == q = SingleApplication ((vs, setInsert as (Const False)) `Entails` c)
     | p /= q = ErroneousApplication "Predositions must be negations of eachother"
     | otherwise = ErroneousApplication "One or both propositions are not in scope"
 notE s (Not q) p = notE s p (Not q)
 notE _ _ _ = errorBicond
 
 topI :: Sequent Pred -> RuleApplication Pred
-topI (as `Entails` c) = SingleApplication (setInsert as (Const True) `Entails` c)
+topI ((vs, as) `Entails` c) = SingleApplication ((vs, setInsert as (Const True)) `Entails` c)
 topI _ = errorBicond
 
 botE :: Sequent Pred -> Pred -> RuleApplication Pred
-botE (as `Entails` c) p
-    | Const False `elem` as = SingleApplication (setInsert as p `Entails` c)
+botE ((vs, as) `Entails` c) p
+    | Const False `elem` as = SingleApplication ((vs, setInsert as p) `Entails` c)
     | otherwise = ErroneousApplication "Bottom proposition not in scope"
 botE _ _ = errorBicond
 
 stmtI :: Sequent Pred -> Pred -> RuleApplication Pred
-stmtI (as `Entails` c) p = BranchingApplication (as `Entails` p) (setInsert as p `Entails` c)
+stmtI ((vs, as) `Entails` c) p = BranchingApplication ((vs, as) `Entails` p) ((vs, setInsert as p) `Entails` c)
 stmtI _ _ = errorBicond
 
+allI :: Sequent Pred -> RuleApplication Pred
+allI ((vs, as) `Entails` (All v p)) = SingleApplication ((newFreeVar vs : vs, as) `Entails` sub (newFreeVar vs) (Var v) p)
+allI (_ `Entails` _) = ErroneousApplication "Consequent must be universally quantified"
+allI _ = errorBicond
+
+allE :: Sequent Pred -> Pred -> Term -> RuleApplication Pred
+allE ((vs, as) `Entails` p) (All v q) t
+    | (All v q `elem` as) && null (varsT t `intersect` boundVars q) = SingleApplication ((vs ++ varsT t, setInsert as (sub t (Var v) q)) `Entails` p)
+    | All v q `elem` as = ErroneousApplication "Substituting provided term will result in variable capture"
+    | otherwise = ErroneousApplication "Universally quantified proposition not in scope"
+allE (_ `Entails` _) _ _ = ErroneousApplication "Provided proposition must be universally quantified"
+allE _ _ _ = errorBicond
+
 pbc :: Sequent Pred -> RuleApplication Pred
-pbc (as `Entails` c) = SingleApplication ((Not c : as) `Entails` Const False)
+pbc ((vs, as) `Entails` c) = SingleApplication ((vs, Not c : as) `Entails` Const False)
 pbc _ = errorBicond
 
 applyRule :: Sequent Pred -> Rule -> RuleApplication Pred
@@ -440,7 +519,10 @@ applyRule s rule = case rule of
        TopIntro       -> topI  s
        (BottomElim p) -> botE  s p
        (StmtIntro p)  -> stmtI s p
+       AllIntro       -> allI  s
+       (AllElim p t)  -> allE  s p t
        Pbc            -> pbc   s
+       _              -> ErroneousApplication ""
 
 applyRule' :: [Symbol] -> Sequent Pred -> IO Bool
 applyRule' syms s = do
@@ -469,7 +551,7 @@ getRule syms text = do
     Left errMsg -> putStrLn errMsg >> getRule syms text
 
 solved :: Sequent Pred -> Bool
-solved (as `Entails` c) = c `elem` as
+solved ((_, as) `Entails` c) = c `elem` as
 
 prompt :: String -> IO String
 prompt text = runInputT defaultSettings $ do
@@ -477,11 +559,15 @@ prompt text = runInputT defaultSettings $ do
     Nothing   -> return ""
     Just line -> return line
 
+extractVars :: Sequent Pred -> Sequent Pred
+extractVars ((_, as) `Entails` c) = (concatMap vars as ++ vars c, as) `Entails` c
+extractVars ((_, a) `Biconditional` c) = (vars a ++ vars c, a) `Biconditional` c
+
 getSequent :: [Symbol] -> String -> IO (Sequent Pred)
 getSequent syms p = do xs <- prompt p
                        let s = evalS syms xs
                        case s of
-                         (Right s) -> return s
+                         (Right s) -> return $ extractVars s
                          (Left errMsg) -> putStrLn errMsg >> getSequent syms p
 
 getPred :: [Symbol] -> String -> IO Pred
@@ -510,9 +596,9 @@ runEngine = do syms <- getSymbols "Input a list of constant, function and relati
                s <- getSequent syms "Input a sequent: "
                case s of
                  (_ `Entails` _) -> applyRule'' syms s
-                 (a `Biconditional` c) -> do
-                   res1 <- applyRule'' syms ([a] `Entails` c)
-                   res2 <- applyRule'' syms ([c] `Entails` a)
+                 ((vs, a) `Biconditional` c) -> do
+                   res1 <- applyRule'' syms ((vs, [a]) `Entails` c)
+                   res2 <- applyRule'' syms ((vs, [c]) `Entails` a)
                    return $ res1 && res2
 
 runEngine' :: IO ()
@@ -521,8 +607,8 @@ runEngine' = do syms <- getSymbols "Input a list of constant, function and relat
                 t <- getTerm syms "Enter a term to sub in: "
                 v <- getTerm syms "Enter a variable to sub: "
                 print x
-                print $ rmDupes (vars x)
-                print $ rmDupes (freeVars x)
-                print $ rmDupes (boundVars x)
+                print $ nub (vars x)
+                print $ nub (freeVars x)
+                print $ nub (boundVars x)
                 print $ sub t v x
                 return ()
