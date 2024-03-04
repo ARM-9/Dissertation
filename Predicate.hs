@@ -15,6 +15,8 @@ import Parser
 import Data.Maybe
 import System.Console.Haskeline
 import GHC.OldList(intersect)
+import Data.Char (isDigit, intToDigit)
+import Debug.Trace
 
 arguments :: Show t => [t] -> String
 arguments [] = ""
@@ -59,25 +61,23 @@ instance Eq Pred where
   (Exi v p)    == (Exi u q)    =  v == u && p == q
   _            == _            =  False
 
-data Term = FreeVar Int
-          | Var Char
+data Term = Var Char
           | ConstT Char
           | Func Char [Term]
           deriving (Read)
 
 instance Show Term where
   show :: Term -> String
-  show (FreeVar x) = show x
   show (Var x) = [x]
   show (ConstT x) = [x]
   show (Func f xs) = f : arguments xs
 
 instance Eq Term where
   (==) :: Term -> Term -> Bool
-  (FreeVar x) == (FreeVar y) = x == y
   (Var x)     == (Var y)     = x == y
   (ConstT x)  == (ConstT y)  = x == y
   (Func f xs) == (Func g ys) = f == g && xs == ys
+  _           == _           = False
 
 vars :: Pred -> [Term]
 vars (Const _) = []
@@ -92,7 +92,6 @@ vars (All _ p) = vars p
 vars (Exi _ p) = vars p
 
 varsT :: Term -> [Term]
-varsT (FreeVar v) = [FreeVar v]
 varsT (Var v) = [Var v]
 varsT (ConstT _) = []
 varsT (Func _ ts) = concatMap varsT ts
@@ -131,13 +130,12 @@ sub t v (p `Or` q) = sub t v p `And` sub t v q
 sub t v (p `Imp` q) = sub t v p `And` sub t v q
 sub t v (p `Equi` q) = sub t v p `And` sub t v q
 sub t v (All x p) = if v == Var x then All x p else All x (sub t v p)
-sub t v (Exi x p) = if v == Var x then All x p else All x (sub t v p)
+sub t v (Exi x p) = if v == Var x then Exi x p else Exi x (sub t v p)
 
 subT :: Term -> Term -> Term -> Term
 subT t (Var x) (Var y) = if x == y then t else Var y
 subT _ _ (ConstT c) = ConstT c
 subT t v (Func f ts) = Func f (map (subT t v) ts)
-
 data Sequent p = ([Term], [p]) `Entails` p
                | ([Term], p) `Biconditional` p
              deriving (Read)
@@ -241,7 +239,7 @@ term syms = do s <- lower
              else if fromJust arity == 0 then
                      return $ ConstT x
              else empty
-      <|> do FreeVar <$> number
+      <|> do Var <$> digit
 
 evalT :: [Symbol] -> String -> Either String Term
 evalT syms = eval (term syms)
@@ -329,8 +327,8 @@ data Rule = EmptyRule
           | BottomElim Pred
           | AllIntro
           | AllElim Pred Term
-          | ExiIntro Pred Term Char
-          | ExiElim Pred Pred
+          | ExiIntro Pred Term Term
+          | ExiElim Pred
           | StmtIntro  Pred
           | Pbc -- (Sequent Pred) -- xx
           deriving (Show, Read)
@@ -374,9 +372,9 @@ ruleP syms = do (p, q) <- binaryRuleP syms "ANDI"
                     comma
                     t <- term syms
                     comma
-                    ExiIntro p t <$> lower
-             <|> do (p, q) <- binaryRuleP syms "NOTE"
-                    return $ ExiElim p q
+                    ExiIntro p t <$> term syms
+             <|> do p <- unaryRuleP syms "EXIE"
+                    return $ ExiElim p
              <|> do p <- unaryRuleP syms "STMTI"
                     return $ StmtIntro p
              <|> do p <- symbol "PBC"
@@ -403,11 +401,12 @@ data RuleApplication p = ErroneousApplication String
                        | BranchingApplication (Sequent p) (Sequent p)
 
 isFree :: Term -> Bool
-isFree (FreeVar _) = True
+isFree (Var x) = isDigit x
 isFree _ = False
 
 newFreeVar :: [Term] -> Term
-newFreeVar vs = FreeVar $ length (filter isFree vs)
+newFreeVar vs = if index < 10 then Var (intToDigit index) else error "MAX DEPTH OF 10 SUBPROOFS BREACHED"
+  where index = length (filter isFree vs)
 
 setInsert :: Eq a => [a] -> a -> [a]
 setInsert xs x = if x `elem` xs then xs else xs ++ [x]
@@ -457,7 +456,7 @@ orE :: Sequent Pred -> Pred -> RuleApplication Pred
 orE ((vs, as) `Entails` c) (p `Or` q)
     | (p `Or` q) `elem` as = BranchingApplication ((vs, p:as) `Entails` c) ((vs, q:as) `Entails` c)
     | otherwise = ErroneousApplication "Predosition not in scope"
-orE (_ `Entails` _) _ = ErroneousApplication "Consequent must be a disjunctive proposition"
+orE (_ `Entails` _) _ = ErroneousApplication "Proposition must be disjunctive"
 orE _ _ = errorBicond
 
 notI :: Sequent Pred -> RuleApplication Pred
@@ -500,6 +499,21 @@ allE ((vs, as) `Entails` p) (All v q) t
 allE (_ `Entails` _) _ _ = ErroneousApplication "Provided proposition must be universally quantified"
 allE _ _ _ = errorBicond
 
+exiI :: Sequent Pred -> Pred -> Term -> Term -> RuleApplication Pred
+exiI ((vs, as) `Entails` c) p t (Var v)
+    | Var v `notElem` vs = ErroneousApplication "Provided variable not recognised"
+    | Var v `elem` boundVars p = ErroneousApplication "Provided variable is already bound"
+    | not $ null (varsT t `intersect` boundVars p) = trace (show $ boundVars p) ErroneousApplication "Substituting provided term will result in variable capture"
+    | otherwise = SingleApplication ((vs ++ varsT t, setInsert as (Exi v $ sub (Var v) t p)) `Entails` c)
+exiI _ _ _ _ = errorBicond
+
+exiE :: Sequent Pred -> Pred -> RuleApplication Pred
+exiE ((vs, as) `Entails` c) (Exi v q)
+    | Exi v q `elem` as = SingleApplication ((newFreeVar vs : vs, sub (newFreeVar vs) (Var v) q : as) `Entails` c)
+    | otherwise = ErroneousApplication "Propostion not in scope"
+exiE (_ `Entails` _) _ = ErroneousApplication "Proposition must be existentially quantified"
+exiE _ _ = errorBicond
+
 pbc :: Sequent Pred -> RuleApplication Pred
 pbc ((vs, as) `Entails` c) = SingleApplication ((vs, Not c : as) `Entails` Const False)
 pbc _ = errorBicond
@@ -521,6 +535,8 @@ applyRule s rule = case rule of
        (StmtIntro p)  -> stmtI s p
        AllIntro       -> allI  s
        (AllElim p t)  -> allE  s p t
+       (ExiIntro p t v) -> exiI s p t v
+       (ExiElim p)    -> exiE  s p
        Pbc            -> pbc   s
        _              -> ErroneousApplication ""
 
@@ -552,6 +568,7 @@ getRule syms text = do
 
 solved :: Sequent Pred -> Bool
 solved ((_, as) `Entails` c) = c `elem` as
+
 
 prompt :: String -> IO String
 prompt text = runInputT defaultSettings $ do

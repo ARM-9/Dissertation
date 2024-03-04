@@ -8,6 +8,7 @@ module Parser(
     Parser,
     lower,
     upper,
+    digit,
     symbol,
     number,
     comma,
