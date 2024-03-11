@@ -75,7 +75,7 @@ l3P = l4P >>= \l ->
        "∧"   -> return (l `And` r)
        "OR"  -> return (l `Or` r)
        "∨"   -> return (l `Or` r)
-  <|> return l
+ <|> return l
 
 l4P :: Parser Prop
 l4P = do symbol "NOT" <|> symbol "¬" >> Not <$> l4P
@@ -186,6 +186,7 @@ data RuleApplication p = ErroneousApplication String
                        | SingleApplication (Sequent p)
                        | BranchingApplication (Sequent p) (Sequent p)
 
+-- USE NUB
 setInsert :: Eq a => [a] -> a -> [a]
 setInsert xs x = if x `elem` xs then xs else xs ++ [x]
 

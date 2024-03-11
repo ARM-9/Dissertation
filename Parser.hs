@@ -12,11 +12,13 @@ module Parser(
     symbol,
     number,
     comma,
+    lowerStr,
+    upperStartStr,
     list,
     listN,
     eval
 ) where
-    
+
 import Control.Applicative
 import Data.Char
 import Control.Monad
@@ -93,6 +95,14 @@ char x = sat (== x)
 string :: String -> Parser String
 string = traverse char
 
+lowerStr :: Parser String
+lowerStr = some lower
+
+upperStartStr :: Parser String
+upperStartStr = do u <- upper
+                   l <- many lower
+                   return $ u:l
+
 space :: Parser ()
 space = void $ many (sat isSpace)
 
@@ -111,7 +121,6 @@ number = some digit >>= \num -> return $ read num
 comma :: Parser String
 comma = symbol ","
 
--- TODO: Make list parser accomdate for empty lists
 list :: Parser a -> Parser [a]
 list p = do x <- p
             xs <- many (comma >> p)
@@ -119,14 +128,14 @@ list p = do x <- p
 
 listN :: Int -> Parser a -> Parser [a]
 listN n p = do x <- p
-               do symbol ","
+               do comma
                   xs <- listN (n-1) p
                   return (x:xs)
                 <|> if n == 1 then return [x] else empty
-              
+
 eval :: Parser a -> String -> Either String a
 eval p xs =
-  case parse p xs of 
+  case parse p xs of
     Right (v, []) -> Right v
     Right (_, out) -> Left $ "Syntax error at " ++ show (length xs - length out)
     Left msg -> Left msg
