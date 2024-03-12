@@ -540,32 +540,40 @@ lemmaI ((vs, as) `Entails` c) p = BranchingApplication ((combine vs (vars p), as
 lemmaI _ _ = errorBiconditional
 
 allI :: Sequent -> RuleApplication
-allI ((vs, as) `Entails` (All v p)) = SingleApplication ((freeVar : vs, as) `Entails` sub freeVar (Var v) p)
+allI ((vs, as) `Entails` (All v p)) = SingleApplication ((freeVar : vs, as) `Entails` subbedP)
   where freeVar = newFreeVar vs
+        subbedP = sub freeVar (Var v) p
 allI (_ `Entails` _) = InvalidApplication "Consequent must be universally quantified"
 allI _ = errorBiconditional
 
 allE :: Sequent -> Pred -> Term -> RuleApplication
-allE ((vs, as) `Entails` p) (All v q) t
-  | (All v q `elem` as) && null (varsT t `intersect` boundVars q) = trace (show vs) SingleApplication ((nub $ vs ++ varsT t, combine as [sub t (Var v) q]) `Entails` p)
-  | All v q `elem` as = InvalidApplication "Substituting provided term will result in variable capture"
+allE ((vs, as) `Entails` c) (All v q) t
+  | x && y = SingleApplication ((combine vs (varsT t), combine as [subbedTQ]) `Entails` c)
+  | x = InvalidApplication "Substituting provided term will result in variable capture"
   | otherwise = InvalidApplication "Universally quantified proposition not in scope"
+  where x = All v q `elem` as
+        y = null (varsT t `intersect` boundVars q)
+        subbedTQ = sub t (Var v) q
 allE (_ `Entails` _) _ _ = InvalidApplication "Provided proposition must be universally quantified"
 allE _ _ _ = errorBiconditional
 
 exiI :: Sequent -> Pred -> Term -> Term -> RuleApplication
 exiI ((vs, as) `Entails` c) p t (Var v)
-  | Var v `notElem` vs = InvalidApplication "Provided variable not recognised"
-  | Var v `elem` boundVars p = InvalidApplication "Provided variable is already bound"
-  | not . null $ varsT t `intersect` boundVars p = InvalidApplication "Substituting provided term will result in variable capture"
-  | otherwise = trace (show vs) SingleApplication ((nub $ vs ++ varsT t, combine as [Exi v $ sub (Var v) t p]) `Entails` c)
+  | vBound = InvalidApplication "Provided variable is already bound"
+  | varCapture = InvalidApplication "Substituting provided term will result in variable capture"
+  | otherwise = SingleApplication ((combine vs $ combine (varsT t) [Var v], combine as [generalisedP]) `Entails` c)
+  where vBound = Var v `elem` boundVars p
+        varCapture = not . null $ varsT t `intersect` boundVars p
+        subbedP = sub (Var v) t p
+        generalisedP = Exi v subbedP
 exiI _ _ _ _ = errorBiconditional
 
 exiE :: Sequent -> Pred -> RuleApplication
 exiE ((vs, as) `Entails` c) (Exi v q)
-  | Exi v q `elem` as = trace (show vs) SingleApplication ((freeVar : vs, sub freeVar (Var v) q : as) `Entails` c)
+  | Exi v q `elem` as = SingleApplication ((freeVar : vs, subbedQ : as) `Entails` c)
   | otherwise = InvalidApplication "Propostion not in scope"
   where freeVar = newFreeVar vs
+        subbedQ = sub freeVar (Var v) q
 exiE (_ `Entails` _) _ = InvalidApplication "Proposition must be existentially quantified"
 exiE _ _ = errorBiconditional
 
