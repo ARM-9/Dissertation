@@ -1,5 +1,5 @@
-module Predicate.SequentPred(
-  Sequent,
+module Predicate.Sequent(
+  Sequent(..),
   evalS
 ) where
 

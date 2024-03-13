@@ -4,7 +4,7 @@
 {-# OPTIONS_GHC -Wno-unused-do-bind #-}
 {-# OPTIONS_GHC -Wno-unused-top-binds #-}
 
-module Predicate(
+module Predicate.Predicate(
     Pred(..),
     Term(..),
 ) where

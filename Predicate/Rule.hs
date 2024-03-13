@@ -1,5 +1,6 @@
-module Predicate.RulePred(
-
+module Predicate.Rule(
+  Rule(..),
+  evalR
 ) where
 
 import Predicate.Pred

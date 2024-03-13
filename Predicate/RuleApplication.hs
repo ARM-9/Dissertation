@@ -13,11 +13,14 @@ module Predicate.RuleApplicationPred(
   pbc
 ) where
 
-import Sequent
+import Predicate.Sequent
 import Predicate.Pred
 import Predicate.Term
 import Predicate.Symbol
-import Predicate.RulePred
+import Predicate.Rule
+import Utils
+import Data.List
+import System.Console.Haskeline
 
 data RuleApplication = UndoingApplication
                      | InvalidApplication   String
@@ -71,7 +74,7 @@ orE :: Sequent -> Pred -> RuleApplication
 orE ((vs, as) `Entails` c) (p `Or` q)
   | (p `Or` q) `elem` as = BranchingApplication ((vs, p:as) `Entails` c) ((vs, q:as) `Entails` c)
   | otherwise = InvalidApplication "Proposition not in scope"
-orE (_ `Entails` _) p = trace (show p) InvalidApplication "Disjunctive proposition must be provided"
+orE (_ `Entails` _) p = InvalidApplication "Disjunctive proposition must be provided"
 orE _ _ = errorBiconditional
 
 notI :: Sequent -> RuleApplication
