@@ -1,4 +1,4 @@
-module Pred(
+module Predicate.Pred(
   Pred(..),
   l1P,
   evalF,
@@ -8,11 +8,12 @@ module Pred(
   sub
 ) where
 
-import Symbol
+import Predicate.Symbol
 import Parser
-import Term
+import Predicate.Term
 import Control.Applicative hiding (Const)
 import Data.List
+import Utils
 
 data Pred = Const Bool
           | Eql  Term Term

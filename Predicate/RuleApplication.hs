@@ -1,4 +1,6 @@
-module RuleApplicationPred(
+{-# LANGUAGE LambdaCase #-}
+
+module Predicate.RuleApplicationPred(
   RuleApplication(..),
   andI, andEl, andEr,
   impI, impE,
@@ -12,9 +14,10 @@ module RuleApplicationPred(
 ) where
 
 import Sequent
-import Pred
-import Term
-import RulePred
+import Predicate.Pred
+import Predicate.Term
+import Predicate.Symbol
+import Predicate.RulePred
 
 data RuleApplication = UndoingApplication
                      | InvalidApplication   String
@@ -168,3 +171,44 @@ applyRule s rule = case rule of
        (ExiElim p)      -> exiE   s p
        Pbc              -> pbc    s
        Undo             -> UndoingApplication
+
+applyRule' :: [Symbol] -> Sequent -> IO Bool
+applyRule' syms s = do
+  print s
+  r <- getRule syms "Enter a rule: "
+  let ruleApl = applyRule s r
+  case ruleApl of
+    InvalidApplication str -> do
+      putStrLn $ "Error: " ++ str
+      applyRule' syms s
+    SingleApplication s1 -> do
+       result <- applyRule'' syms s1
+       if not result then
+          applyRule' syms s
+       else return True
+    BranchingApplication s1 s2 -> do
+       result1 <- applyRule'' syms s1
+       result2 <- applyRule'' syms s2
+       if not (result1 && result2) then
+          applyRule' syms s
+       else return True
+    UndoingApplication -> return False
+
+applyRule'' :: [Symbol] -> Sequent -> IO Bool
+applyRule'' syms s = do if solved s then return True else applyRule' syms s
+
+getRule :: [Symbol] -> String -> IO Rule
+getRule syms text = do
+  input <- prompt text
+  case evalR syms input of
+    Right rule -> return rule
+    Left errMsg -> putStrLn errMsg >> getRule syms text
+
+solved :: Sequent -> Bool
+solved ((_, as) `Entails` c) = c `elem` as
+
+prompt :: String -> IO String
+prompt text = runInputT defaultSettings $ do
+  getInputLine text >>= \case
+    Nothing   -> return ""
+    Just line -> return line

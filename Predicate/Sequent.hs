@@ -1,12 +1,12 @@
-module Sequent(
+module Predicate.SequentPred(
   Sequent,
   evalS
 ) where
 
-import Symbol
+import Predicate.Symbol
 import Parser
-import Term
-import Pred
+import Predicate.Term
+import Predicate.Pred
 import Data.List
 import Control.Applicative
 

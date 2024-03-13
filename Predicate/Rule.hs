@@ -1,10 +1,10 @@
-module RulePred(
+module Predicate.RulePred(
 
 ) where
 
-import Pred
-import Term
-import Symbol
+import Predicate.Pred
+import Predicate.Term
+import Predicate.Symbol
 import Parser
 import Control.Applicative
 
@@ -77,3 +77,18 @@ ruleP syms = do (p, q) <- binaryRuleP syms "ANDI"
                    return Pbc
             <|> do symbol "UNDO" >> return Undo
 
+unaryRuleP :: [Symbol] -> String -> Parser Pred
+unaryRuleP syms rule = do symbol rule
+                          comma
+                          l1P syms
+
+binaryRuleP :: [Symbol] -> String -> Parser (Pred, Pred)
+binaryRuleP syms rule = do symbol rule
+                           comma
+                           p <- l1P syms
+                           comma
+                           q <- l1P syms
+                           return (p, q)
+
+evalR :: [Symbol] -> String -> Either String Rule
+evalR syms = eval (ruleP syms)

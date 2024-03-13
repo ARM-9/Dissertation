@@ -1,4 +1,4 @@
-module Term(
+module Predicate.Term(
   Term(..),
   termP,
   evalT,
@@ -9,10 +9,11 @@ module Term(
 ) where
 
 import Data.Char
-import Symbol
+import Predicate.Symbol
 import Parser
 import Control.Applicative
 import Data.List
+import Utils
 
 data Term = Var    String
           | ConstT String
