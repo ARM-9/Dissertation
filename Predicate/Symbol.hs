@@ -1,11 +1,13 @@
 module Predicate.Symbol(
   Symbol(..),
   getSym,
-  evalSyms
+  evalSyms,
+  getSymbols
 ) where
 
 import Parser
 import Control.Applicative
+import Utils
 
 data Symbol = Constant String
             | Function String Int
@@ -17,6 +19,18 @@ instance Show Symbol where
    show (Constant c) = c
    show (Function f n) = f ++ "(" ++ show n ++ ")"
    show (Relation r n) = r ++ "(" ++ show n ++ ")"
+
+getSym :: String -> [Symbol] -> Maybe Symbol
+getSym _ [] = Nothing
+getSym xs (Constant sym : syms)
+  | xs == sym = Just (Constant sym)
+  | otherwise = getSym xs syms
+getSym xs (Function sym arity : syms)
+  | xs == sym = Just (Function sym arity)
+  | otherwise = getSym xs syms
+getSym xs (Relation sym arity : syms)
+  | xs == sym = Just (Relation sym arity)
+  | otherwise = getSym xs syms
 
 arityP :: Parser Int
 arityP = do symbol "("
@@ -50,14 +64,9 @@ symbolsP syms = do sym <- symbolP syms
 evalSyms :: String -> Either String [Symbol]
 evalSyms = eval (symbolsP [])
 
-getSym :: String -> [Symbol] -> Maybe Symbol
-getSym _ [] = Nothing
-getSym xs (Constant sym : syms)
-  | xs == sym = Just (Constant sym)
-  | otherwise = getSym xs syms
-getSym xs (Function sym arity : syms)
-  | xs == sym = Just (Function sym arity)
-  | otherwise = getSym xs syms
-getSym xs (Relation sym arity : syms)
-  | xs == sym = Just (Relation sym arity)
-  | otherwise = getSym xs syms
+getSymbols :: String -> IO [Symbol]
+getSymbols p = do xs <- prompt p
+                  let s = evalSyms xs
+                  case s of
+                     (Right s) -> return s
+                     (Left errMsg) -> putStrLn errMsg >> getSymbols p

@@ -1,16 +1,6 @@
-{-# LANGUAGE LambdaCase #-}
-
-module Predicate.RuleApplicationPred(
+module Predicate.RuleApplication(
   RuleApplication(..),
-  andI, andEl, andEr,
-  impI, impE,
-  orIl, orIr, orE,
-  notI, notE,
-  topI, botE,
-  lemmaI,
-  allI, allE,
-  exiI, exiE,
-  pbc
+  applyRule''
 ) where
 
 import Predicate.Sequent
@@ -200,18 +190,5 @@ applyRule' syms s = do
 applyRule'' :: [Symbol] -> Sequent -> IO Bool
 applyRule'' syms s = do if solved s then return True else applyRule' syms s
 
-getRule :: [Symbol] -> String -> IO Rule
-getRule syms text = do
-  input <- prompt text
-  case evalR syms input of
-    Right rule -> return rule
-    Left errMsg -> putStrLn errMsg >> getRule syms text
-
 solved :: Sequent -> Bool
 solved ((_, as) `Entails` c) = c `elem` as
-
-prompt :: String -> IO String
-prompt text = runInputT defaultSettings $ do
-  getInputLine text >>= \case
-    Nothing   -> return ""
-    Just line -> return line

@@ -50,6 +50,14 @@ termP syms = do f <- lowerStr
 evalT :: [Symbol] -> String -> Either String Term
 evalT syms = eval (termP syms)
 
+getTerm :: [Symbol] -> String -> IO Term
+getTerm syms p = do xs <- prompt p
+                    let s = evalT syms xs
+                    case s of
+                       (Right s) -> return s
+                       (Left errMsg) -> putStrLn errMsg >> getTerm syms p
+
+
 varsT :: Term -> [Term]
 varsT (Var v)     = [Var v]
 varsT (ConstT _)  = []

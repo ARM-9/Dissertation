@@ -1,6 +1,7 @@
 module Predicate.Sequent(
   Sequent(..),
-  evalS
+  evalS,
+  getSequent
 ) where
 
 import Predicate.Symbol
@@ -9,6 +10,7 @@ import Predicate.Term
 import Predicate.Pred
 import Data.List
 import Control.Applicative
+import Utils
 
 data Sequent = ([Term], [Pred]) `Entails` Pred
              | ([Term], Pred) `Biconditional` Pred
@@ -20,6 +22,10 @@ instance Show Sequent where
     intercalate ", " [show antecedents] ++ " ⊢ " ++ show consequent
   show ((_, antecedent) `Biconditional` consequent) =
     show antecedent ++ " ⟛ " ++ show consequent
+
+extractVars :: Sequent -> Sequent
+extractVars ((_, as) `Entails` c) = (nub $ concatMap vars as ++ vars c, as) `Entails` c
+extractVars ((_, a) `Biconditional` c) = (nub $ vars a ++ vars c, a) `Biconditional` c
 
 sequentP :: [Symbol] -> Parser Sequent
 sequentP syms = do l <- l1P syms
@@ -39,3 +45,10 @@ sequentP syms = do l <- l1P syms
 
 evalS :: [Symbol] -> String -> Either String Sequent
 evalS syms = eval (sequentP syms)
+
+getSequent :: [Symbol] -> String -> IO Sequent
+getSequent syms p = do xs <- prompt p
+                       let s = evalS syms xs
+                       case s of
+                         (Right s) -> return $ extractVars s
+                         (Left errMsg) -> putStrLn errMsg >> getSequent syms p

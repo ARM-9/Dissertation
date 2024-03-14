@@ -1,12 +1,13 @@
 module Predicate.Rule(
   Rule(..),
-  evalR
+  getRule
 ) where
 
 import Predicate.Pred
 import Predicate.Term
 import Predicate.Symbol
 import Parser
+import Utils
 import Control.Applicative
 
 data Rule = Undo
@@ -93,3 +94,10 @@ binaryRuleP syms rule = do symbol rule
 
 evalR :: [Symbol] -> String -> Either String Rule
 evalR syms = eval (ruleP syms)
+
+getRule :: [Symbol] -> String -> IO Rule
+getRule syms text = do
+  input <- prompt text
+  case evalR syms input of
+    Right rule -> return rule
+    Left errMsg -> putStrLn errMsg >> getRule syms text

@@ -120,6 +120,13 @@ l5P syms = do symbol "T" <|> symbol "TRUE"
 evalF :: [Symbol] -> String -> Either String Pred
 evalF syms = eval (l1P syms)
 
+getPred :: [Symbol] -> String -> IO Pred
+getPred syms p = do xs <- prompt p
+                    let s = evalF syms xs
+                    case s of
+                       (Right s) -> return s
+                       (Left errMsg) -> putStrLn errMsg >> getPred syms p
+
 vars :: Pred -> [Term]
 vars (Const _) = []
 vars (x `Eql` y)  = varsT x ++ varsT y
