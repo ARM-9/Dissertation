@@ -34,29 +34,21 @@ instance Eq Term where
 
 termP :: [Symbol] -> Parser Term
 termP syms = do f <- lowerStr
-                case getSym f syms of
+                case findSymbol f syms of
                      Just (Function _ arity) -> do symbol "("
                                                    ts <- listN arity $ termP syms
                                                    symbol ")"
                                                    return $ Func f ts
                      _                       -> empty
       <|> do x <- lowerStr
-             case getSym x syms of
+             case findSymbol x syms of
                   Nothing           -> return $ Var x
                   Just (Constant _) -> return $ ConstT x
                   _                 -> empty
-      <|> do Var . show <$> number
+      <|> do Var . show <$> countingNumber
 
 evalT :: [Symbol] -> String -> Either String Term
 evalT syms = eval (termP syms)
-
-getTerm :: [Symbol] -> String -> IO Term
-getTerm syms p = do xs <- prompt p
-                    let s = evalT syms xs
-                    case s of
-                       (Right s) -> return s
-                       (Left errMsg) -> putStrLn errMsg >> getTerm syms p
-
 
 varsT :: Term -> [Term]
 varsT (Var v)     = [Var v]
@@ -69,10 +61,17 @@ subT _ _ (ConstT c)    = ConstT c
 subT t v (Func f ts)   = Func f (map (subT t v) ts)
 subT _ _ t             = t
 
-isFree :: Term -> Bool
+type Variable = Term
+
+isFree :: Variable -> Bool
 isFree (Var x) = all isDigit x
 isFree _ = False
 
-newFreeVar :: [Term] -> Term
+{-
+  Accepts a set of all recognised
+  variables within a scope and
+  returns the next free variable
+-}
+newFreeVar :: [Variable] -> Term
 newFreeVar vs = Var $ show index
   where index = length (filter isFree vs)

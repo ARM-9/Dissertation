@@ -7,7 +7,6 @@
 {-# OPTIONS_GHC -Wno-unused-top-binds #-}
 
 {-# LANGUAGE InstanceSigs #-}
-{-# LANGUAGE LambdaCase #-}
 
 module Propositional(
   Prop(..),
@@ -21,6 +20,7 @@ import Data.Either
 import System.Console.Haskeline
 import System.IO
 import Debug.Trace
+import Utils
 
 data Prop = Const   Bool
           | Var     Char
@@ -315,12 +315,6 @@ getRule text = do
 -- Inititially included BOTTOM
 solved :: Sequent Prop -> Bool
 solved (as `Entails` c) = c `elem` as
-
-prompt :: String -> IO String
-prompt text = runInputTWithPrefs defaultPrefs defaultSettings $ do
-  getInputLine text >>= \case
-    Nothing   -> return ""
-    Just line -> return line
 
 getSequent :: String -> IO (Sequent Prop)
 getSequent p = do xs <- prompt p

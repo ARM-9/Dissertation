@@ -168,7 +168,7 @@ applyRule s rule = case rule of
 applyRule' :: [Symbol] -> Sequent -> IO Bool
 applyRule' syms s = do
   print s
-  r <- getRule syms "Enter a rule: "
+  r <- getRule syms
   let ruleApl = applyRule s r
   case ruleApl of
     InvalidApplication str -> do
@@ -189,6 +189,3 @@ applyRule' syms s = do
 
 applyRule'' :: [Symbol] -> Sequent -> IO Bool
 applyRule'' syms s = do if solved s then return True else applyRule' syms s
-
-solved :: Sequent -> Bool
-solved ((_, as) `Entails` c) = c `elem` as

@@ -1,13 +1,12 @@
 module Predicate.Symbol(
   Symbol(..),
-  getSym,
-  evalSyms,
+  findSymbol,
   getSymbols
 ) where
 
 import Parser
-import Control.Applicative
 import Utils
+import Control.Applicative
 
 data Symbol = Constant String
             | Function String Int
@@ -20,35 +19,41 @@ instance Show Symbol where
    show (Function f n) = f ++ "(" ++ show n ++ ")"
    show (Relation r n) = r ++ "(" ++ show n ++ ")"
 
-getSym :: String -> [Symbol] -> Maybe Symbol
-getSym _ [] = Nothing
-getSym xs (Constant sym : syms)
+{-
+  Accepts a String and list of Symbols and
+  returns the first Symbol that matches the
+  provided String or Nothing if no matching Symbol
+  was found
+-}
+findSymbol :: String -> [Symbol] -> Maybe Symbol
+findSymbol _ [] = Nothing
+findSymbol xs (Constant sym : syms)
   | xs == sym = Just (Constant sym)
-  | otherwise = getSym xs syms
-getSym xs (Function sym arity : syms)
+  | otherwise = findSymbol xs syms
+findSymbol xs (Function sym arity : syms)
   | xs == sym = Just (Function sym arity)
-  | otherwise = getSym xs syms
-getSym xs (Relation sym arity : syms)
+  | otherwise = findSymbol xs syms
+findSymbol xs (Relation sym arity : syms)
   | xs == sym = Just (Relation sym arity)
-  | otherwise = getSym xs syms
+  | otherwise = findSymbol xs syms
 
 arityP :: Parser Int
 arityP = do symbol "("
-            n <- number
+            n <- countingNumber
             symbol ")"
             return n
 
 symbolP :: [Symbol] -> Parser Symbol
-symbolP syms = do r <- upperStartStr
-                  case getSym r syms of
+symbolP syms = do r <- capitalisedStr
+                  case findSymbol r syms of
                        Nothing -> Relation r <$> arityP
                        _       -> empty
               <|> do f <- lowerStr
-                     case getSym f syms of
+                     case findSymbol f syms of
                           Nothing -> Function f <$> arityP
                           _       -> empty
               <|> do c <- lowerStr
-                     case getSym c syms of
+                     case findSymbol c syms of
                           Nothing -> return $ Constant c
                           _       -> empty
 
@@ -64,9 +69,9 @@ symbolsP syms = do sym <- symbolP syms
 evalSyms :: String -> Either String [Symbol]
 evalSyms = eval (symbolsP [])
 
-getSymbols :: String -> IO [Symbol]
-getSymbols p = do xs <- prompt p
-                  let s = evalSyms xs
-                  case s of
-                     (Right s) -> return s
-                     (Left errMsg) -> putStrLn errMsg >> getSymbols p
+getSymbols :: IO [Symbol]
+getSymbols = do xs <- prompt "Input a list of constant, function and relation symbols: "
+                let s = evalSyms xs
+                case s of
+                  (Right s) -> return s
+                  (Left errMsg) -> putStrLn errMsg >> getSymbols

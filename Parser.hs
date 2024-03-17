@@ -1,9 +1,5 @@
 {-# HLINT ignore "Use lambda-case" #-}
 
-{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
-{-# OPTIONS_GHC -Wno-unused-do-bind #-}
-{-# OPTIONS_GHC -Wno-unused-top-binds #-}
-
 module Parser(
     Parser,
     lower,
@@ -11,9 +7,10 @@ module Parser(
     digit,
     symbol,
     number,
+    countingNumber,
     comma,
     lowerStr,
-    upperStartStr,
+    capitalisedStr,
     list,
     listN,
     eval
@@ -38,7 +35,7 @@ instance Functor Parser where
   fmap :: (a -> b) -> Parser a -> Parser b
   fmap g p = P $ \input ->
     case parse p input of
-      Left msg       -> Left msg
+      Left msg         -> Left msg
       Right (val, out) -> Right (g val, out)
 
 instance Applicative Parser where
@@ -95,14 +92,6 @@ char x = sat (== x)
 string :: String -> Parser String
 string = traverse char
 
-lowerStr :: Parser String
-lowerStr = some lower
-
-upperStartStr :: Parser String
-upperStartStr = do u <- upper
-                   l <- many lower
-                   return $ u:l
-
 space :: Parser ()
 space = void $ many (sat isSpace)
 
@@ -112,11 +101,23 @@ token p = do space
              space
              return v
 
-symbol :: String -> Parser String
-symbol = token . string
+lowerStr :: Parser String
+lowerStr = token $ some lower
+
+capitalisedStr :: Parser String
+capitalisedStr = token $ upper >> many lower
 
 number :: Parser Int
-number = some digit >>= \num -> return $ read num
+number = token $ some digit >>= \num -> return $ read num
+
+countingNumber :: Parser Int
+countingNumber = do n <- number
+                    case n of
+                      0 -> empty
+                      _ -> return n
+
+symbol :: String -> Parser String
+symbol = token . string
 
 comma :: Parser String
 comma = symbol ","

@@ -21,15 +21,19 @@ data Rule = Undo
           | OrELim     Pred
           | NotIntro
           | NotELim    Pred Pred
+          | BiconIntro
+          | BiconElim  Pred Pred
           | TopIntro
           | BottomElim Pred
           | AllIntro
           | AllElim    Pred Term
           | ExiIntro   Pred Term Term
           | ExiElim    Pred
+          | EqualIntro Term
+          | EqualElim  Pred Pred
           | LemmaIntro Pred
           | Pbc
-          deriving (Show) -- Add instance show
+          deriving (Show)
 
 ruleP :: [Symbol] -> Parser Rule
 ruleP syms = do (p, q) <- binaryRuleP syms "ANDI"
@@ -60,19 +64,25 @@ ruleP syms = do (p, q) <- binaryRuleP syms "ANDI"
                    return AllIntro
             <|> do symbol "ALLE"
                    comma
-                   p <- l1P syms
+                   p <- predP syms
                    comma
                    t <- termP syms
                    return $ AllElim p t
             <|> do symbol "EXII"
                    comma
-                   p <- l1P syms
+                   p <- predP syms
                    comma
                    t <- termP syms
                    comma
                    ExiIntro p t <$> termP syms
             <|> do p <- unaryRuleP syms "EXIE"
                    return $ ExiElim p
+            <|> do symbol "EQUALI"
+                   comma
+                   t <- termP syms
+                   return $ EqualIntro t
+            <|> do (p, q) <- binaryRuleP syms "EQUALE"
+                   return $ EqualElim p q
             <|> do p <- unaryRuleP syms "LEMMAI"
                    return $ LemmaIntro p
             <|> do p <- symbol "PBC"
@@ -82,22 +92,21 @@ ruleP syms = do (p, q) <- binaryRuleP syms "ANDI"
 unaryRuleP :: [Symbol] -> String -> Parser Pred
 unaryRuleP syms rule = do symbol rule
                           comma
-                          l1P syms
+                          predP syms
 
 binaryRuleP :: [Symbol] -> String -> Parser (Pred, Pred)
 binaryRuleP syms rule = do symbol rule
                            comma
-                           p <- l1P syms
+                           p <- predP syms
                            comma
-                           q <- l1P syms
+                           q <- predP syms
                            return (p, q)
 
 evalR :: [Symbol] -> String -> Either String Rule
 evalR syms = eval (ruleP syms)
 
-getRule :: [Symbol] -> String -> IO Rule
-getRule syms text = do
-  input <- prompt text
-  case evalR syms input of
-    Right rule -> return rule
-    Left errMsg -> putStrLn errMsg >> getRule syms text
+getRule :: [Symbol] -> IO Rule
+getRule syms = do input <- prompt "Enter a rule: "
+                  case evalR syms input of
+                       Right rule -> return rule
+                       Left errMsg -> putStrLn errMsg >> getRule syms
