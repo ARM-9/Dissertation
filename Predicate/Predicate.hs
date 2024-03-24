@@ -226,7 +226,7 @@ l5P syms = do symbol "T" <|> symbol "TRUE"
               return $ Const True
       <|> do symbol "F" <|> symbol "FALSE"
              return $ Const False
-      <|> do r <- upperStartStr
+      <|> do r <- capitalisedStr
              case getSym r syms of
                   Just (Relation _ arity) -> do symbol "("
                                                 ts <- listN arity $ termP syms
@@ -331,7 +331,7 @@ arityP = do symbol "("
             return n
 
 symbolP :: [Symbol] -> Parser Symbol
-symbolP syms = do r <- upperStartStr
+symbolP syms = do r <- capitalisedStr
                   case getSym r syms of
                        Nothing -> Relation r <$> arityP
                        _       -> empty

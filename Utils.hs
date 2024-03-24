@@ -2,7 +2,9 @@
 
 module Utils(
   prettyArgs,
-  combine,
+  setPre,
+  setApp,
+  mergeSets,
   prompt
 ) where
 
@@ -13,8 +15,14 @@ prettyArgs :: Show t => [t] -> String
 prettyArgs [] = ""
 prettyArgs ts = "(" ++ intercalate ", " (map show ts) ++ ")"
 
-combine :: Eq a => [a] -> [a] -> [a]
-combine xs ys = nub $ xs ++ ys
+setPre :: Eq a => a -> [a] -> [a]
+setPre x xs = nub $ x : xs
+
+setApp :: Eq a => a -> [a] -> [a]
+setApp x xs = nub $ xs ++ [x]
+
+mergeSets :: Eq a => [a] -> [a] -> [a]
+mergeSets xs ys = nub $ xs ++ ys
 
 prompt :: String -> IO String
 prompt text = runInputT defaultSettings $ do

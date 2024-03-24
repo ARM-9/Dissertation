@@ -2,9 +2,6 @@
 
 module Parser(
     Parser,
-    lower,
-    upper,
-    digit,
     symbol,
     number,
     countingNumber,
@@ -55,7 +52,7 @@ instance Alternative Parser where
   (<|>) :: Parser a -> Parser a -> Parser a
   p <|> q = P $ \input ->
     case parse p input of
-      Left _         -> parse q input
+      Left _           -> parse q input
       Right (val, out) -> Right (val, out)
 
 instance Monad Parser where
