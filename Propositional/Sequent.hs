@@ -34,7 +34,7 @@ sequentP = do l <- propP
                  return ([l] `Entails` r)
                <|> do symbol "-||-" <|> symbol "⟛"
                       r <- propP
-                      return ([] `Equivalent` r)
+                      return (l `Equivalent` r)
             <|> do ls <- list propP
                    symbol "|-" <|> symbol "⊢"
                    r <- propP
