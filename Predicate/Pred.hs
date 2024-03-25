@@ -1,7 +1,7 @@
 module Predicate.Pred(
   Pred(..),
   predP,
-  evalF,
+  evalP,
   terms,
   vars,
   freeVars,
@@ -122,8 +122,8 @@ l5P syms = do symbol "T" <|> symbol "TRUE"
               r <- termP syms
               return $ l `Eql` r
 
-evalF :: [Symbol] -> String -> Either String Pred
-evalF syms = eval (predP syms)
+evalP :: [Symbol] -> String -> Either String Pred
+evalP syms = eval (predP syms)
 
 terms :: Pred -> [Term]
 terms (Const _)     = []
