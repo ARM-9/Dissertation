@@ -1,6 +1,7 @@
 {-# LANGUAGE LambdaCase #-}
 
 module Utils(
+  bracketed,
   prettyArgs,
   setPre,
   setApp,
@@ -11,9 +12,12 @@ module Utils(
 import Data.List
 import System.Console.Haskeline
 
+bracketed :: String -> String
+bracketed xs = "(" ++ xs ++ ")"
+
 prettyArgs :: Show t => [t] -> String
 prettyArgs [] = ""
-prettyArgs ts = "(" ++ intercalate ", " (map show ts) ++ ")"
+prettyArgs ts = intercalate ", " (map show ts)
 
 setPre :: Eq a => a -> [a] -> [a]
 setPre x xs = nub $ x : xs

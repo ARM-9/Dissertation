@@ -27,7 +27,7 @@ instance Show Term where
   show :: Term -> String
   show (Var x)     = x
   show (ConstT x)  = x
-  show (Func f xs) = f ++ prettyArgs xs
+  show (Func f xs) = f ++ (bracketed . prettyArgs) xs
 
 instance Eq Term where
   (==) :: Term -> Term -> Bool

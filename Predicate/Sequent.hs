@@ -19,7 +19,8 @@ data Sequent = ([Variable], [Pred]) `Entails` Pred
 instance Show Sequent where
   show :: Sequent -> String
   show ((vs, hypotheses) `Entails` conclusion) =
-    show vs ++ intercalate ", " (map show hypotheses) ++ " ⊢ " ++ show conclusion
+    (bracketed . prettyArgs) vs ++ "\n" ++
+    prettyArgs hypotheses ++ " ⊢ " ++ show conclusion
   show ((_, hypothesis) `Equivalent` conclusion) =
     show hypothesis ++ " ⟛ " ++ show conclusion
 

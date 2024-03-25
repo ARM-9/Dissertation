@@ -17,8 +17,8 @@ data Symbol = Constant String
 instance Show Symbol where
    show :: Symbol -> String
    show (Constant c) = c
-   show (Function f n) = f ++ "(" ++ show n ++ ")"
-   show (Relation r n) = r ++ "(" ++ show n ++ ")"
+   show (Function f n) = f ++ bracketed (show n)
+   show (Relation r n) = r ++ bracketed (show n)
 
 {-
   Accepts a String and list of Symbols and

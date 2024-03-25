@@ -31,7 +31,7 @@ instance Show Pred where
   show :: Pred -> String
   show (Const x)     = if x then "T" else "F"
   show (x `Eql` y)   = "(" ++ show x ++ " = " ++ show y ++ ")"
-  show (Rel x xs)    =   x ++ prettyArgs xs
+  show (Rel x xs)    =   x ++ (bracketed . prettyArgs) xs
   show (Not p)       = "¬" ++ show p
   show (p `And` q)   = "(" ++ show p ++ " ∧ " ++ show q ++ ")"
   show (p `Or` q)    = "(" ++ show p ++ " ∨ " ++ show q ++ ")"
