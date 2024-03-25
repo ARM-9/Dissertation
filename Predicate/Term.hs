@@ -1,7 +1,9 @@
 module Predicate.Term(
   Term(..),
+  Variable,
   termP,
   evalT,
+  getTerm,
   varsT,
   subT,
   isFree,
@@ -18,6 +20,8 @@ import Utils
 data Term = Var    String
           | ConstT String
           | Func   String [Term]
+
+type Variable = Term
 
 instance Show Term where
   show :: Term -> String
@@ -40,28 +44,34 @@ termP syms = do f <- lowerStr
                                                    symbol ")"
                                                    return $ Func f ts
                      _                       -> empty
-      <|> do x <- lowerStr
-             case findSymbol x syms of
-                  Nothing           -> return $ Var x
-                  Just (Constant _) -> return $ ConstT x
-                  _                 -> empty
-      <|> do Var . show <$> countingNumber
+         <|> do x <- lowerStr
+                case findSymbol x syms of
+                     Nothing           -> return $ Var x
+                     Just (Constant _) -> return $ ConstT x
+                     _                 -> empty
+         <|> do Var . show <$> number
 
 evalT :: [Symbol] -> String -> Either String Term
 evalT syms = eval (termP syms)
+
+getTerm :: [Symbol] -> IO Term
+getTerm syms = do xs <- prompt "Input a term: "
+                  let s = evalT syms xs
+                  case s of
+                        (Right s) -> return s
+                        (Left errMsg) -> putStrLn errMsg >> getTerm syms
 
 varsT :: Term -> [Term]
 varsT (Var v)     = [Var v]
 varsT (ConstT _)  = []
 varsT (Func _ ts) = nub $ concatMap varsT ts
 
-subT :: Term -> Term -> Term -> Term
+-- y[t/x], c[t/x], f(t1,...,tn)[t/x]
+subT :: Term -> Variable -> Term -> Term
 subT t (Var x) (Var y) = if x == y then t else Var y
 subT _ _ (ConstT c)    = ConstT c
-subT t v (Func f ts)   = Func f (map (subT t v) ts)
+subT t x (Func f ts)   = Func f (map (subT t x) ts)
 subT _ _ t             = t
-
-type Variable = Term
 
 isFree :: Variable -> Bool
 isFree (Var x) = all isDigit x
@@ -72,6 +82,6 @@ isFree _ = False
   variables within a scope and
   returns the next free variable
 -}
-newFreeVar :: [Variable] -> Term
-newFreeVar vs = Var $ show index
-  where index = length (filter isFree vs)
+newFreeVar :: [Variable] -> Variable
+newFreeVar vs = Var $ show var
+  where var = length (filter isFree vs)

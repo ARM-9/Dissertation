@@ -8,6 +8,7 @@ import Parser
 import Utils
 import Control.Applicative
 
+-- c, f(arity), R(arity)
 data Symbol = Constant String
             | Function String Int
             | Relation String Int

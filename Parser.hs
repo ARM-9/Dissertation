@@ -1,4 +1,4 @@
-{-# HLINT ignore "Use lambda-case" #-}
+{-# LANGUAGE LambdaCase #-}
 
 module Parser(
     Parser,
@@ -23,8 +23,7 @@ parse :: Parser a -> String -> Either String (a, String)
 parse (P p) = p
 
 item :: Parser Char
-item = P $ \input ->
-  case input of
+item = P $ \case
     []     -> Left "Empty input"
     (x:xs) -> Right (x, xs)
 
@@ -102,7 +101,11 @@ lowerStr :: Parser String
 lowerStr = token $ some lower
 
 capitalisedStr :: Parser String
-capitalisedStr = token $ upper >> many lower
+capitalisedStr = do space
+                    x <- upper
+                    xs <- many lower
+                    space
+                    return (x:xs)
 
 number :: Parser Int
 number = token $ some digit >>= \num -> return $ read num

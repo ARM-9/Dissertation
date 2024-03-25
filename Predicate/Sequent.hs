@@ -1,6 +1,6 @@
 module Predicate.Sequent(
   Sequent(..),
-  solved,
+  isTrivial,
   getSequent
 ) where
 
@@ -12,26 +12,28 @@ import Data.List
 import Control.Applicative
 import Utils
 
-type Variable = Term
-
+-- [recognised variables]
 data Sequent = ([Variable], [Pred]) `Entails` Pred
              | ([Variable], Pred) `Equivalent` Pred
 
 instance Show Sequent where
   show :: Sequent -> String
-  show ((_, hypotheses) `Entails` conclusion) =
-    intercalate ", " [show hypotheses] ++ " ⊢ " ++ show conclusion
+  show ((vs, hypotheses) `Entails` conclusion) =
+    show vs ++ intercalate ", " (map show hypotheses) ++ " ⊢ " ++ show conclusion
   show ((_, hypothesis) `Equivalent` conclusion) =
     show hypothesis ++ " ⟛ " ++ show conclusion
 
-extractVars :: Sequent -> Sequent
-extractVars ((_, as) `Entails` c) =
+addVarsToSeq :: Sequent -> Sequent
+addVarsToSeq ((_, as) `Entails` c) =
   (nub $ concatMap vars as ++ vars c, as) `Entails` c
-extractVars ((_, a) `Equivalent` c) =
+addVarsToSeq ((_, a) `Equivalent` c) =
   (nub $ vars a ++ vars c, a) `Equivalent` c
 
-solved :: Sequent -> Bool
-solved ((_, as) `Entails` c) = c `elem` as
+-- Evaluates if a sequent has been proven
+-- by verifying that the conclusion has
+-- been derived from the hypotheses
+isTrivial :: Sequent -> Bool
+isTrivial ((_, as) `Entails` c) = c `elem` as
 
 sequentP :: [Symbol] -> Parser Sequent
 sequentP syms = do l <- predP syms
@@ -56,5 +58,5 @@ getSequent :: [Symbol] -> IO Sequent
 getSequent syms = do xs <- prompt "Input a sequent: "
                      let s = evalS syms xs
                      case s of
-                        (Right s) -> return $ extractVars s
+                        (Right s) -> return $ addVarsToSeq s
                         (Left errMsg) -> putStrLn errMsg >> getSequent syms

@@ -27,7 +27,7 @@ data Rule = Undo
           | BottomElim Pred
           | AllIntro
           | AllElim    Pred Term
-          | ExiIntro   Pred Term Term
+          | ExiIntro   Pred Term Variable
           | ExiElim    Pred
           | EqualIntro Term
           | EqualElim  Pred Pred
@@ -40,7 +40,7 @@ ruleP syms = do (p, q) <- binaryRuleP syms "ANDI"
                 return $ AndIntro p q
             <|> do p <- unaryRuleP syms "ANDEL"
                    return $ AndElimL p
-            <|> do p <- unaryRuleP syms "ANDEL"
+            <|> do p <- unaryRuleP syms "ANDER"
                    return $ AndElimR p
             <|> do symbol "IMPI"
                    return ImpIntro

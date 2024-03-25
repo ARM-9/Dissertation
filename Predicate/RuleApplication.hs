@@ -1,6 +1,6 @@
 module Predicate.RuleApplication(
   RuleApplication(..),
-  applyRule''
+  applyRule
 ) where
 
 import Predicate.Sequent
@@ -40,12 +40,11 @@ impI _ = errorBiconditional
 
 impE :: Sequent -> Pred -> Pred -> RuleApplication
 impE ((vs, as) `Entails` c) (p `Imp` q) r
-  | x && y && z = SingleApplication ((vs, setApp q as) `Entails` c)
-  | x && y = InvalidApplication "Premise of provided implication does not match provided proposition"
-  | otherwise = InvalidApplication "One or both propositions are not in scope"
-  where x = (p `Imp` q) `elem` as
-        y = r `elem` as
-        z = p == r
+  | notInScope = InvalidApplication "One or both propositions are not in scope"
+  | fallacy = InvalidApplication "Premise of provided implication does not match provided proposition"
+  | otherwise = SingleApplication ((vs, setApp q as) `Entails` c)
+  where notInScope = (p `Imp` q) `notElem` as || r `notElem` as
+        fallacy = p /= r
 impE ((vs, as) `Entails` c) r (p `Imp` q) = impE ((vs, as) `Entails` c) (p `Imp` q) r
 impE (_ `Entails` _) _ _ = InvalidApplication "Implicative proposition must be provided"
 impE _ _ _ = errorBiconditional
@@ -68,18 +67,17 @@ orE (_ `Entails` _) p = InvalidApplication "Disjunctive proposition must be prov
 orE _ _ = errorBiconditional
 
 notI :: Sequent -> RuleApplication
-notI ((vs, as) `Entails` (Not p)) = SingleApplication ((vs, p:as) `Entails` Const False)
+notI ((vs, as) `Entails` (Not p)) = SingleApplication ((vs, setPre p as) `Entails` Const False)
 notI (_ `Entails` _) = InvalidApplication "Consequent must be a negative proposition"
 notI _ = errorBiconditional
 
 notE :: Sequent -> Pred -> Pred -> RuleApplication
 notE ((vs, as) `Entails` c) p (Not q)
-  | x && y && z = SingleApplication ((vs, setApp (Const False) as) `Entails` c)
-  | x && y = InvalidApplication "Propositions must be negations of eachother"
-  | otherwise = InvalidApplication "One or both propositions are not in scope"
-  where x = p `elem` as
-        y = Not q `elem` as
-        z = p == q
+  | notInScope = InvalidApplication "One or both propositions are not in scope"
+  | fallacy = InvalidApplication "Propositions must be negations of eachother"
+  | otherwise = SingleApplication ((vs, setApp (Const False) as) `Entails` c)
+  where notInScope = p `notElem` as || Not q `notElem` as
+        fallacy = p /= q
 notE s (Not q) p = notE s p (Not q)
 notE _ _ _ = errorBiconditional
 
@@ -99,7 +97,7 @@ lemmaI ((vs, as) `Entails` c) p = BranchingApplication ((mergeSets vs (vars p), 
 lemmaI _ _ = errorBiconditional
 
 allI :: Sequent -> RuleApplication
-allI ((vs, as) `Entails` (All v p)) = SingleApplication ((freeVar : vs, as) `Entails` subbedP)
+allI ((vs, as) `Entails` (All v p)) = SingleApplication ((setApp freeVar vs, as) `Entails` subbedP)
   where freeVar = newFreeVar vs
         subbedP = sub freeVar (Var v) p
 allI (_ `Entails` _) = InvalidApplication "Consequent must be universally quantified"
@@ -107,32 +105,34 @@ allI _ = errorBiconditional
 
 allE :: Sequent -> Pred -> Term -> RuleApplication
 allE ((vs, as) `Entails` c) (All v q) t
-  | x && y = SingleApplication ((mergeSets vs (varsT t), setApp subbedTQ as) `Entails` c)
-  | x = InvalidApplication "Substituting provided term will result in variable capture"
-  | otherwise = InvalidApplication "Universally quantified proposition not in scope"
-  where x = All v q `elem` as
-        y = null (varsT t `intersect` boundVars q)
+  | notInScope = InvalidApplication "Universally quantified proposition not in scope"
+  | varCapture = InvalidApplication "Substituting in provided term will result in variable capture"
+  | otherwise = SingleApplication ((mergeSets vs (varsT t), setApp subbedTQ as) `Entails` c)
+  where notInScope = All v q `notElem` as
+        varCapture = not . null $ varsT t `intersect` boundVars q
         subbedTQ = sub t (Var v) q
 allE (_ `Entails` _) _ _ = InvalidApplication "Provided proposition must be universally quantified"
 allE _ _ _ = errorBiconditional
 
-exiI :: Sequent -> Pred -> Term -> Term -> RuleApplication
+exiI :: Sequent -> Pred -> Term -> Variable -> RuleApplication
 exiI ((vs, as) `Entails` c) p t (Var v)
-  | vBound = InvalidApplication "Provided variable is already bound"
-  | varCapture = InvalidApplication "Substituting provided term will result in variable capture"
+  | termNotInPred = InvalidApplication "Provided term does not appear in the formula provided"
+  | varBound = InvalidApplication "Provided variable is already bound"
+  | varCapture = InvalidApplication "Substituting in provided term will result in variable capture"
   | otherwise = SingleApplication ((mergeSets vs $ setApp  (Var v) (varsT t), setApp generalisedP as) `Entails` c)
-  where vBound = Var v `elem` boundVars p
+  where termNotInPred = t `notElem` terms p
+        varBound = Var v `elem` boundVars p
         varCapture = not . null $ varsT t `intersect` boundVars p
         subbedP = sub (Var v) t p
         generalisedP = Exi v subbedP
 exiI _ _ _ _ = errorBiconditional
 
 exiE :: Sequent -> Pred -> RuleApplication
-exiE ((vs, as) `Entails` c) (Exi v q)
-  | Exi v q `elem` as = SingleApplication ((freeVar : vs, setPre subbedQ as) `Entails` c)
+exiE ((vs, as) `Entails` c) (Exi v p)
+  | Exi v p `elem` as = SingleApplication ((setApp freeVar vs, setPre subbedP as) `Entails` c)
   | otherwise = InvalidApplication "Propostion not in scope"
   where freeVar = newFreeVar vs
-        subbedQ = sub freeVar (Var v) q
+        subbedP = sub freeVar (Var v) p
 exiE (_ `Entails` _) _ = InvalidApplication "Proposition must be existentially quantified"
 exiE _ _ = errorBiconditional
 
@@ -143,8 +143,8 @@ pbc _ = errorBiconditional
 errorBiconditional :: RuleApplication
 errorBiconditional = InvalidApplication "Function undefined for biconditionals"
 
-applyRule :: Sequent -> Rule -> RuleApplication
-applyRule s rule = case rule of
+applyRule'' :: Sequent -> Rule -> RuleApplication
+applyRule'' s rule = case rule of
        (AndIntro p q)   -> andI   s p q
        (AndElimL p)     -> andEl  s p
        (AndElimR p)     -> andEr  s p
@@ -169,23 +169,23 @@ applyRule' :: [Symbol] -> Sequent -> IO Bool
 applyRule' syms s = do
   print s
   r <- getRule syms
-  let ruleApl = applyRule s r
+  let ruleApl = applyRule'' s r
   case ruleApl of
     InvalidApplication str -> do
       putStrLn $ "Error: " ++ str
       applyRule' syms s
     SingleApplication s1 -> do
-       result <- applyRule'' syms s1
+       result <- applyRule syms s1
        if not result then
           applyRule' syms s
        else return True
     BranchingApplication s1 s2 -> do
-       result1 <- applyRule'' syms s1
-       result2 <- applyRule'' syms s2
+       result1 <- applyRule syms s1
+       result2 <- applyRule syms s2
        if not (result1 && result2) then
           applyRule' syms s
        else return True
     UndoingApplication -> return False
 
-applyRule'' :: [Symbol] -> Sequent -> IO Bool
-applyRule'' syms s = do if solved s then return True else applyRule' syms s
+applyRule :: [Symbol] -> Sequent -> IO Bool
+applyRule syms s = do if isTrivial s then return True else applyRule' syms s
