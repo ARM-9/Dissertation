@@ -12,7 +12,7 @@ import Utils
 
 -- [recognised variables]
 data Sequent = [Prop] `Entails` Prop
-             | [Prop] `Equivalent` Prop
+             |  Prop `Equivalent` Prop
 
 instance Show Sequent where
   show :: Sequent -> String
