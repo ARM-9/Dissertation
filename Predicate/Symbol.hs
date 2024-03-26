@@ -20,24 +20,6 @@ instance Show Symbol where
    show (Function f n) = f ++ bracketed (show n)
    show (Relation r n) = r ++ bracketed (show n)
 
-{-
-  Accepts a String and list of Symbols and
-  returns the first Symbol that matches the
-  provided String or Nothing if no matching Symbol
-  was found
--}
-findSymbol :: String -> [Symbol] -> Maybe Symbol
-findSymbol _ [] = Nothing
-findSymbol xs (Constant sym : syms)
-  | xs == sym = Just (Constant sym)
-  | otherwise = findSymbol xs syms
-findSymbol xs (Function sym arity : syms)
-  | xs == sym = Just (Function sym arity)
-  | otherwise = findSymbol xs syms
-findSymbol xs (Relation sym arity : syms)
-  | xs == sym = Just (Relation sym arity)
-  | otherwise = findSymbol xs syms
-
 arityP :: Parser Int
 arityP = do symbol "("
             n <- countingNumber
@@ -76,3 +58,21 @@ getSymbols = do xs <- prompt "Input a list of constant, function and relation sy
                 case s of
                   (Right s) -> return s
                   (Left errMsg) -> putStrLn errMsg >> getSymbols
+
+{-
+  Accepts a String and list of Symbols and
+  returns the first Symbol that matches the
+  provided String or Nothing if no matching Symbol
+  was found
+-}
+findSymbol :: String -> [Symbol] -> Maybe Symbol
+findSymbol _ [] = Nothing
+findSymbol xs (Constant sym : syms)
+  | xs == sym = Just (Constant sym)
+  | otherwise = findSymbol xs syms
+findSymbol xs (Function sym arity : syms)
+  | xs == sym = Just (Function sym arity)
+  | otherwise = findSymbol xs syms
+findSymbol xs (Relation sym arity : syms)
+  | xs == sym = Just (Relation sym arity)
+  | otherwise = findSymbol xs syms

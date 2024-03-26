@@ -28,14 +28,14 @@ instance Show Prop where
 
 instance Eq Prop where
   (==) :: Prop -> Prop -> Bool
-  (Const x)     == (Const y)   =  x == y
-  (Var x)       == (Var y)     =  x == y
-  (Not p)       == (Not q)     =  p == q
-  (p `And` q)   == (r `And` s) = (p == r && q == s) || (p == s && q == r)
-  (p `Or` q)    == (r `Or` s)  = (p == r && q == s) || (p == s && q == r)
-  (p `Imp` q)   == (r `Imp` s) =  p == r && q == s
-  (p `Bicon` q) == (r `Or` s)  = (p == r && q == s) || (p == s && q == r)
-  _             == _           =  False
+  (Const x)     == (Const y)     =  x == y
+  (Var x)       == (Var y)       =  x == y
+  (Not p)       == (Not q)       =  p == q
+  (p `And` q)   == (r `And` s)   = (p == r && q == s) || (p == s && q == r)
+  (p `Or` q)    == (r `Or` s)    = (p == r && q == s) || (p == s && q == r)
+  (p `Imp` q)   == (r `Imp` s)   =  p == r && q == s
+  (p `Bicon` q) == (r `Bicon` s) = (p == r && q == s) || (p == s && q == r)
+  _             == _             =  False
 
 propP :: Parser Prop
 propP = l1P

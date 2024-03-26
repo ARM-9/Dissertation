@@ -42,17 +42,17 @@ instance Show Pred where
 
 instance Eq Pred where
   (==) :: Pred -> Pred -> Bool
-  (Const x)     == (Const y)    =  x == y
-  (u `Eql` v)   == (x `Eql` y)  = (u == x && v == y) || (u == y && v == x)
-  (Rel x xs)    == (Rel y ys)   =  x == y && xs == ys
-  (Not p)       == (Not q)      =  p == q
-  (p `And` q)   == (r `And` s)  = (p == r && q == s) || (p == s && q == r)
-  (p `Or` q)    == (r `Or` s)   = (p == r && q == s) || (p == s && q == r)
-  (p `Imp` q)   == (r `Imp` s)  =  p == r && q == s
-  (p `Bicon` q) == (r `Or` s)   = (p == r && q == s) || (p == s && q == r)
-  (All v p)     == (All u q)    =  v == u && p == q
-  (Exi v p)     == (Exi u q)    =  v == u && p == q
-  _             == _            =  False
+  (Const x)     == (Const y)     =  x == y
+  (u `Eql` v)   == (x `Eql` y)   = (u == x && v == y) || (u == y && v == x)
+  (Rel x xs)    == (Rel y ys)    =  x == y && xs == ys
+  (Not p)       == (Not q)       =  p == q
+  (p `And` q)   == (r `And` s)   = (p == r && q == s) || (p == s && q == r)
+  (p `Or` q)    == (r `Or` s)    = (p == r && q == s) || (p == s && q == r)
+  (p `Imp` q)   == (r `Imp` s)   =  p == r && q == s
+  (p `Bicon` q) == (r `Bicon` s) = (p == r && q == s) || (p == s && q == r)
+  (All v p)     == (All u q)     =  v == u && p == q
+  (Exi v p)     == (Exi u q)     =  v == u && p == q
+  _             == _             =  False
 
 predP :: [Symbol] -> Parser Pred
 predP = l1P
