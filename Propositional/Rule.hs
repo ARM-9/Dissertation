@@ -16,9 +16,9 @@ data Rule = Undo
           | ImpElim    Prop Prop
           | OrIntroL   Prop
           | OrIntroR   Prop
-          | OrELim     Prop
+          | OrElim     Prop
           | NotIntro
-          | NotELim    Prop Prop
+          | NotElim    Prop Prop
           | BiconIntro
           | BiconElim  Prop Prop
           | TopIntro
@@ -40,14 +40,14 @@ ruleP = do (p, q) <- binaryRuleP "ANDI"
               return $ ImpElim p q
        <|> do p <- unaryRuleP "ORIL"
               return $ OrIntroL p
-       <|> do p <- unaryRuleP "ORIL"
+       <|> do p <- unaryRuleP "ORIR"
               return $ OrIntroR p
        <|> do p <- unaryRuleP "ORE"
-              return $ OrELim p
+              return $ OrElim p
        <|> do symbol "NOTI"
               return NotIntro
        <|> do (p, q) <- binaryRuleP "NOTE"
-              return $ NotELim p q
+              return $ NotElim p q
        <|> do symbol "TOPI"
               return TopIntro
        <|> do p <- unaryRuleP "BOTE"

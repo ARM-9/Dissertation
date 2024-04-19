@@ -11,18 +11,18 @@ import Data.List
 
 data RuleApplication = UndoingApplication
                      | InvalidApplication   String
-                     | SingleApplication    Sequent
+                     | LinearApplication    Sequent
                      | BranchingApplication Sequent Sequent
 
 andI :: Sequent -> Prop -> Prop -> RuleApplication
 andI (as `Entails` c) p q
-  | p `elem` as && q `elem` as = SingleApplication (setApp (p `And` q) as `Entails` c)
+  | p `elem` as && q `elem` as = LinearApplication (setApp (p `And` q) as `Entails` c)
   | otherwise = InvalidApplication "One or both propositions are not in scope"
 andI _ _ _ = errorBiconditional
 
 andEl :: Sequent -> Prop -> RuleApplication
 andEl (as `Entails` c) (p `And` q)
-  | (p `And` q) `elem` as = SingleApplication (setApp p as `Entails` c)
+  | (p `And` q) `elem` as = LinearApplication (setApp p as `Entails` c)
   | otherwise = InvalidApplication "Proposition not in scope"
 andEl (_ `Entails` _) _ = InvalidApplication "Conjunctive proposition must be provided"
 andEl _ _ = errorBiconditional
@@ -31,7 +31,7 @@ andEr :: Sequent -> Prop -> RuleApplication
 andEr s (p `And` q) = andEl s (q `And` p)
 
 impI :: Sequent -> RuleApplication
-impI (as `Entails` (p `Imp` q)) = SingleApplication (setPre p as `Entails` q)
+impI (as `Entails` (p `Imp` q)) = LinearApplication (setPre p as `Entails` q)
 impI (_ `Entails` _) = InvalidApplication "Consequent must be an implicative proposition"
 impI _ = errorBiconditional
 
@@ -39,7 +39,7 @@ impE :: Sequent -> Prop -> Prop -> RuleApplication
 impE (as `Entails` c) (p `Imp` q) r
   | notInScope = InvalidApplication "One or both propositions are not in scope"
   | fallacy = InvalidApplication "Premise of provided implication does not match provided proposition"
-  | otherwise = SingleApplication (setApp q as `Entails` c)
+  | otherwise = LinearApplication (setApp q as `Entails` c)
   where notInScope = (p `Imp` q) `notElem` as || r `notElem` as
         fallacy = p /= r
 impE (as `Entails` c) r (p `Imp` q) = impE (as `Entails` c) (p `Imp` q) r
@@ -48,7 +48,7 @@ impE _ _ _ = errorBiconditional
 
 orIl :: Sequent -> Prop -> RuleApplication
 orIl (as `Entails` c) (p `Or` q)
-  | p `elem` as = SingleApplication (setApp (p `Or` q) as `Entails` c)
+  | p `elem` as = LinearApplication (setApp (p `Or` q) as `Entails` c)
   | otherwise = InvalidApplication "Proposition not in scope"
 orIl (_ `Entails` _) _ = InvalidApplication "Disjunctive proposition must be provided"
 orIl _ _ = errorBiconditional
@@ -64,7 +64,7 @@ orE (_ `Entails` _) p = InvalidApplication "Disjunctive proposition must be prov
 orE _ _ = errorBiconditional
 
 notI :: Sequent -> RuleApplication
-notI (as `Entails` (Not p)) = SingleApplication (setPre p as `Entails` Const False)
+notI (as `Entails` (Not p)) = LinearApplication (setPre p as `Entails` Const False)
 notI (_ `Entails` _) = InvalidApplication "Consequent must be a negative proposition"
 notI _ = errorBiconditional
 
@@ -72,19 +72,19 @@ notE :: Sequent -> Prop -> Prop -> RuleApplication
 notE (as `Entails` c) p (Not q)
   | notInScope = InvalidApplication "One or both propositions are not in scope"
   | fallacy = InvalidApplication "Propositions must be negations of eachother"
-  | otherwise = SingleApplication (setApp (Const False) as `Entails` c)
+  | otherwise = LinearApplication (setApp (Const False) as `Entails` c)
   where notInScope = p `notElem` as || Not q `notElem` as
         fallacy = p /= q
 notE s (Not q) p = notE s p (Not q)
 notE _ _ _ = errorBiconditional
 
 topI :: Sequent -> RuleApplication
-topI (as `Entails` c) = SingleApplication (setApp (Const True) as `Entails` c)
+topI (as `Entails` c) = LinearApplication (setApp (Const True) as `Entails` c)
 topI _ = errorBiconditional
 
 botE :: Sequent -> Prop -> RuleApplication
 botE (as `Entails` c) p
-  | Const False `elem` as = SingleApplication (setApp p as `Entails` c)
+  | Const False `elem` as = LinearApplication (setApp p as `Entails` c)
   | otherwise = InvalidApplication "Bottom proposition not in scope"
 botE _ _ = errorBiconditional
 
@@ -93,7 +93,7 @@ lemmaI (as `Entails` c) p = BranchingApplication (as `Entails` p) (setApp p as `
 lemmaI _ _ = errorBiconditional
 
 pbc :: Sequent -> RuleApplication
-pbc (as `Entails` c) = SingleApplication (setPre (Not c) as `Entails` Const False)
+pbc (as `Entails` c) = LinearApplication (setPre (Not c) as `Entails` Const False)
 pbc _ = errorBiconditional
 
 errorBiconditional :: RuleApplication
@@ -108,9 +108,9 @@ applyRule'' s rule = case rule of
        (ImpElim p q)    -> impE   s p q
        (OrIntroL p)     -> orIl   s p
        (OrIntroR p)     -> orIr   s p
-       (OrELim p)       -> orE    s p
+       (OrElim p)       -> orE    s p
        NotIntro         -> notI   s
-       (NotELim p q)    -> notE   s p q
+       (NotElim p q)    -> notE   s p q
        TopIntro         -> topI   s
        (BottomElim p)   -> botE   s p
        (LemmaIntro p)   -> lemmaI s p
@@ -126,7 +126,7 @@ applyRule' s = do
     InvalidApplication str -> do
       putStrLn $ "Error: " ++ str
       applyRule' s
-    SingleApplication s1 -> do
+    LinearApplication s1 -> do
        result <- applyRule s1
        if not result then
           applyRule' s
@@ -140,4 +140,4 @@ applyRule' s = do
     UndoingApplication -> return False
 
 applyRule :: Sequent -> IO Bool
-applyRule s = do if isTrivial s then return True else applyRule' s
+applyRule s = do if identity s then return True else applyRule' s

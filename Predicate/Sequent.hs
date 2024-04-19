@@ -1,6 +1,6 @@
 module Predicate.Sequent(
   Sequent(..),
-  isTrivial,
+  identity,
   getSequent
 ) where
 
@@ -23,18 +23,6 @@ instance Show Sequent where
     prettyArgs hypotheses ++ " ⊢ " ++ show conclusion
   show ((_, hypothesis) `Equivalent` conclusion) =
     show hypothesis ++ " ⟛ " ++ show conclusion
-
-addVarsToSeq :: Sequent -> Sequent
-addVarsToSeq ((_, as) `Entails` c) =
-  (nub $ concatMap vars as ++ vars c, as) `Entails` c
-addVarsToSeq ((_, a) `Equivalent` c) =
-  (nub $ vars a ++ vars c, a) `Equivalent` c
-
--- Evaluates if a sequent has been proven
--- by verifying that the conclusion has
--- been derived from the hypotheses
-isTrivial :: Sequent -> Bool
-isTrivial ((_, as) `Entails` c) = c `elem` as
 
 sequentP :: [Symbol] -> Parser Sequent
 sequentP syms = do l <- predP syms
@@ -61,3 +49,15 @@ getSequent syms = do xs <- prompt "Input a sequent: "
                      case s of
                         (Right s) -> return $ addVarsToSeq s
                         (Left errMsg) -> putStrLn errMsg >> getSequent syms
+
+addVarsToSeq :: Sequent -> Sequent
+addVarsToSeq ((_, as) `Entails` c) =
+  (nub $ concatMap vars as ++ vars c, as) `Entails` c
+addVarsToSeq ((_, a) `Equivalent` c) =
+  (nub $ vars a ++ vars c, a) `Equivalent` c
+
+-- Evaluates if a sequent has been proven
+-- by verifying that the conclusion has
+-- been derived from the hypotheses
+identity :: Sequent -> Bool
+identity ((_, as) `Entails` c) = c `elem` as

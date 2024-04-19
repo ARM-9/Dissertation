@@ -1,6 +1,6 @@
 module Propositional.Sequent(
   Sequent(..),
-  isTrivial,
+  identity,
   getSequent
 ) where
 
@@ -20,12 +20,6 @@ instance Show Sequent where
     prettyArgs hypotheses ++ " ⊢ " ++ show conclusion
   show (hypothesis `Equivalent` conclusion) =
     show hypothesis ++ " ⟛ " ++ show conclusion
-
--- Evaluates if a sequent has been proven
--- by verifying that the conclusion has
--- been derived from the hypotheses
-isTrivial :: Sequent -> Bool
-isTrivial (as `Entails` c) = c `elem` as
 
 sequentP :: Parser Sequent
 sequentP = do l <- propP
@@ -52,3 +46,9 @@ getSequent = do xs <- prompt "Input a sequent: "
                 case s of
                   (Right s) -> return s
                   (Left errMsg) -> putStrLn errMsg >> getSequent
+
+-- Evaluates if a sequent has been proven
+-- by verifying that the conclusion has
+-- been derived from the hypotheses
+identity :: Sequent -> Bool
+identity (as `Entails` c) = c `elem` as

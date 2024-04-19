@@ -16,7 +16,6 @@ bracketed :: String -> String
 bracketed xs = "(" ++ xs ++ ")"
 
 prettyArgs :: Show t => [t] -> String
-prettyArgs [] = ""
 prettyArgs ts = intercalate ", " (map show ts)
 
 setPre :: Eq a => a -> [a] -> [a]
