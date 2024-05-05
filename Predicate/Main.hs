@@ -15,7 +15,7 @@ main = do sig <- getSymbols
                                   return ()
             ((vs, a) `Equivalent` c) -> do
               res1 <- applyRule sig ((vs, [a]) `Entails` c)
-              putStrLn "Forward sequent proven"
+              putStrLn "Forward sequent proven\n"
               res2 <- applyRule sig ((vs, [c]) `Entails` a)
               putStrLn "Reverse sequent proven"
               putStrLn "Proof complete"

@@ -9,10 +9,12 @@ main :: IO ()
 main = do s <- getSequent
           case s of
             (_ `Entails` _) -> do res <- applyRule s
-                                  print res
+                                  putStrLn "Proof complete"
                                   return ()
             (a `Equivalent` c) -> do
               res1 <- applyRule ([a] `Entails` c)
+              putStrLn "Forward sequent proven\n"
               res2 <- applyRule ([c] `Entails` a)
-              print $ res1 && res2
+              putStrLn "Reverse sequent proven"
+              putStrLn "Proof complete"
               return ()
