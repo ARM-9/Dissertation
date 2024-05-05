@@ -146,27 +146,27 @@ applyRule'' s rule = case rule of
        Pbc              -> pbc    s
        Undo             -> UndoingApplication
 
-applyRule' :: [Symbol] -> Sequent -> IO Bool
-applyRule' syms s = do
+applyRule' :: Signature -> Sequent -> IO Bool
+applyRule' sig s = do
   print s
-  r <- getRule syms
+  r <- getRule sig
   let ruleApl = applyRule'' s r
   case ruleApl of
     InvalidApplication str -> do
       putStrLn $ "Error: " ++ str
-      applyRule' syms s
+      applyRule' sig s
     LinearApplication s1 -> do
-       result <- applyRule syms s1
+       result <- applyRule sig s1
        if not result then
-          applyRule' syms s
+          applyRule' sig s
        else return True
     BranchingApplication s1 s2 -> do
-       result1 <- applyRule syms s1
-       result2 <- applyRule syms s2
+       result1 <- applyRule sig s1
+       result2 <- applyRule sig s2
        if not (result1 && result2) then
-          applyRule' syms s
+          applyRule' sig s
        else return True
     UndoingApplication -> return False
 
-applyRule :: [Symbol] -> Sequent -> IO Bool
-applyRule syms s = do if identity s then return True else applyRule' syms s
+applyRule :: Signature -> Sequent -> IO Bool
+applyRule sig s = do if identity s then return True else applyRule' sig s

@@ -101,10 +101,9 @@ lowerStr :: Parser String
 lowerStr = token $ some lower
 
 capitalisedStr :: Parser String
-capitalisedStr = do space
+capitalisedStr = token $ do
                     x <- upper
                     xs <- many lower
-                    space
                     return (x:xs)
 
 number :: Parser Int

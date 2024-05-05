@@ -22,17 +22,14 @@ instance Show Sequent where
     show hypothesis ++ " ⟛ " ++ show conclusion
 
 sequentP :: Parser Sequent
-sequentP = do l <- propP
-              do symbol "|-" <|> symbol "⊢"
-                 r <- propP
-                 return ([l] `Entails` r)
-               <|> do symbol "-||-" <|> symbol "⟛"
-                      r <- propP
-                      return (l `Equivalent` r)
-            <|> do ls <- list propP
-                   symbol "|-" <|> symbol "⊢"
+sequentP = do ls <- list propP
+              symbol "|-" <|> symbol "⊢"
+              r <- propP
+              return (ls `Entails` r)
+            <|> do l <- propP
+                   symbol "-||-" <|> symbol "⟛"
                    r <- propP
-                   return (ls `Entails` r)
+                   return (l `Equivalent` r)
             <|> do symbol "|-" <|> symbol "⊢"
                    r <- propP
                    return ([] `Entails` r)

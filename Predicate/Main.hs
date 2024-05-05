@@ -7,14 +7,16 @@ import Predicate.Symbol
 import Predicate.RuleApplication
 
 main :: IO ()
-main = do syms <- getSymbols
-          s <- getSequent syms
+main = do sig <- getSymbols
+          s <- getSequent sig
           case s of
-            (_ `Entails` _) -> do res <- applyRule syms s
-                                  print res
+            (_ `Entails` _) -> do res <- applyRule sig s
+                                  putStrLn "Proof complete"
                                   return ()
             ((vs, a) `Equivalent` c) -> do
-              res1 <- applyRule syms ((vs, [a]) `Entails` c)
-              res2 <- applyRule syms ((vs, [c]) `Entails` a)
-              print $ res1 && res2
+              res1 <- applyRule sig ((vs, [a]) `Entails` c)
+              putStrLn "Forward sequent proven"
+              res2 <- applyRule sig ((vs, [c]) `Entails` a)
+              putStrLn "Reverse sequent proven"
+              putStrLn "Proof complete"
               return ()

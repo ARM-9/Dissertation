@@ -54,24 +54,24 @@ instance Eq Pred where
   (Exi v p)     == (Exi u q)     =  v == u && p == q
   _             == _             =  False
 
-predP :: [Symbol] -> Parser Pred
+predP :: Signature -> Parser Pred
 predP = l1P
 
-l1P :: [Symbol] -> Parser Pred
+l1P :: Signature -> Parser Pred
 l1P syms = l2P syms >>= \p ->
              do symbol "<->" <|> symbol "↔"
                 q <- l1P syms
                 return $ p `Bicon` q
             <|> return p
 
-l2P :: [Symbol] -> Parser Pred
+l2P :: Signature -> Parser Pred
 l2P syms = l3P syms >>= \p ->
              do symbol "->" <|> symbol "→"
                 q <- l2P syms
                 return $ p `Imp` q
             <|> return p
 
-l3P :: [Symbol] -> Parser Pred
+l3P :: Signature -> Parser Pred
 l3P syms = l4P syms >>= \p ->
   do op <- symbol "AND" <|> symbol "∧" <|> symbol "OR" <|> symbol "∨"
      q <- l3P syms
@@ -86,7 +86,7 @@ l3P syms = l4P syms >>= \p ->
 -- quantifier with the same variable e.g. ALL x ALL x(P(x)).
 -- Or, more generally, a variable is being bound by
 -- multiple quantifiers.
-l4P :: [Symbol] -> Parser Pred
+l4P :: Signature -> Parser Pred
 l4P syms = do symbol "NOT" <|> symbol "¬"
               Not <$> l4P syms
           <|> do symbol "ALL" <|> symbol "∀"
@@ -101,7 +101,7 @@ l4P syms = do symbol "NOT" <|> symbol "¬"
                       _       -> empty
           <|> l5P syms
 
-l5P :: [Symbol] -> Parser Pred
+l5P :: Signature -> Parser Pred
 l5P syms = do symbol "T" <|> symbol "TRUE"
               return $ Const True
        <|> do symbol "F" <|> symbol "FALSE"
@@ -122,7 +122,7 @@ l5P syms = do symbol "T" <|> symbol "TRUE"
               r <- termP syms
               return $ l `Eql` r
 
-evalP :: [Symbol] -> String -> Either String Pred
+evalP :: Signature -> String -> Either String Pred
 evalP syms = eval (predP syms)
 
 terms :: Pred -> [Term]
@@ -174,7 +174,7 @@ boundVars (All v p)     = boundVars p ++ filter (== Var v) (freeVars p)
 boundVars (Exi v p)     = boundVars p ++ filter (== Var v) (freeVars p)
 
 sub :: Term -> Variable -> Pred -> Pred
-sub _ _ (Const x) = Const x
+sub _ _ (Const x)     = Const x
 sub t v (x `Eql` y)   = subT t v x `Eql` subT t v x
 sub t v (Rel x xs)    = Rel x (map (subT t v) xs)
 sub t v (Not p)       = Not (sub t v p)

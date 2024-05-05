@@ -24,26 +24,23 @@ instance Show Sequent where
   show ((_, hypothesis) `Equivalent` conclusion) =
     show hypothesis ++ " ⟛ " ++ show conclusion
 
-sequentP :: [Symbol] -> Parser Sequent
-sequentP syms = do l <- predP syms
-                   do symbol "|-" <|> symbol "⊢"
-                      r <- predP syms
-                      return (([], [l]) `Entails` r)
-                    <|> do symbol "-||-" <|> symbol "⟛"
-                           r <- predP syms
-                           return (([], l) `Equivalent` r)
-                <|> do ls <- list $ predP syms
-                       symbol "|-" <|> symbol "⊢"
+sequentP :: Signature -> Parser Sequent
+sequentP syms = do ls <- list $ predP syms
+                   symbol "|-" <|> symbol "⊢"
+                   r <- predP syms
+                   return (([], ls) `Entails` r)
+                <|> do l <- predP syms
+                       symbol "-||-" <|> symbol "⟛"
                        r <- predP syms
-                       return (([], ls) `Entails` r)
+                       return (([], l) `Equivalent` r)
                 <|> do symbol "|-" <|> symbol "⊢"
                        r <- predP syms
                        return (([], []) `Entails` r)
 
-evalS :: [Symbol] -> String -> Either String Sequent
+evalS :: Signature -> String -> Either String Sequent
 evalS syms = eval (sequentP syms)
 
-getSequent :: [Symbol] -> IO Sequent
+getSequent :: Signature -> IO Sequent
 getSequent syms = do xs <- prompt "Input a sequent: "
                      let s = evalS syms xs
                      case s of

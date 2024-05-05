@@ -1,5 +1,6 @@
 module Predicate.Symbol(
   Symbol(..),
+  Signature,
   findSymbol,
   getSymbols
 ) where
@@ -13,6 +14,8 @@ data Symbol = Constant String
             | Function String Int
             | Relation String Int
             deriving (Eq)
+
+type Signature = [Symbol]
 
 instance Show Symbol where
    show :: Symbol -> String

@@ -35,7 +35,7 @@ data Rule = Undo
           | Pbc
           deriving (Show)
 
-ruleP :: [Symbol] -> Parser Rule
+ruleP :: Signature -> Parser Rule
 ruleP syms = do (p, q) <- binaryRuleP syms "ANDI"
                 return $ AndIntro p q
             <|> do p <- unaryRuleP syms "ANDEL"
@@ -89,12 +89,12 @@ ruleP syms = do (p, q) <- binaryRuleP syms "ANDI"
                    return Pbc
             <|> do symbol "UNDO" >> return Undo
 
-unaryRuleP :: [Symbol] -> String -> Parser Pred
+unaryRuleP :: Signature -> String -> Parser Pred
 unaryRuleP syms rule = do symbol rule
                           comma
                           predP syms
 
-binaryRuleP :: [Symbol] -> String -> Parser (Pred, Pred)
+binaryRuleP :: Signature -> String -> Parser (Pred, Pred)
 binaryRuleP syms rule = do symbol rule
                            comma
                            p <- predP syms
@@ -102,10 +102,10 @@ binaryRuleP syms rule = do symbol rule
                            q <- predP syms
                            return (p, q)
 
-evalR :: [Symbol] -> String -> Either String Rule
+evalR :: Signature -> String -> Either String Rule
 evalR syms = eval (ruleP syms)
 
-getRule :: [Symbol] -> IO Rule
+getRule :: Signature -> IO Rule
 getRule syms = do input <- prompt "Enter a rule: "
                   case evalR syms input of
                        Right rule -> return rule

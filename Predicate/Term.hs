@@ -36,7 +36,7 @@ instance Eq Term where
   (Func f xs) == (Func g ys) = f == g && xs == ys
   _           == _           = False
 
-termP :: [Symbol] -> Parser Term
+termP :: Signature -> Parser Term
 termP syms = do f <- lowerStr
                 case findSymbol f syms of
                      Just (Function _ arity) -> do symbol "("
@@ -51,10 +51,10 @@ termP syms = do f <- lowerStr
                      _                 -> empty
          <|> do Var . show <$> number
 
-evalT :: [Symbol] -> String -> Either String Term
+evalT :: Signature -> String -> Either String Term
 evalT syms = eval (termP syms)
 
-getTerm :: [Symbol] -> IO Term
+getTerm :: Signature -> IO Term
 getTerm syms = do xs <- prompt "Input a term: "
                   let s = evalT syms xs
                   case s of
