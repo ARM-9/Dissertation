@@ -29,7 +29,7 @@ arityP = do symbol "("
             symbol ")"
             return n
 
-symbolP :: [Symbol] -> Parser Symbol
+symbolP :: Signature -> Parser Symbol
 symbolP syms = do r <- capitalisedStr
                   case findSymbol r syms of
                        Nothing -> Relation r <$> arityP
@@ -43,7 +43,7 @@ symbolP syms = do r <- capitalisedStr
                           Nothing -> return $ Constant c
                           _       -> empty
 
-symbolsP :: [Symbol] -> Parser [Symbol]
+symbolsP :: Signature -> Parser [Symbol]
 symbolsP syms = do sym <- symbolP syms
                    do comma
                       otherSyms <- symbolsP (sym : syms)
@@ -68,7 +68,7 @@ getSymbols = do xs <- prompt "Input a list of constant, function and relation sy
   provided String or Nothing if no matching Symbol
   was found
 -}
-findSymbol :: String -> [Symbol] -> Maybe Symbol
+findSymbol :: String -> Signature -> Maybe Symbol
 findSymbol _ [] = Nothing
 findSymbol xs (Constant sym : syms)
   | xs == sym = Just (Constant sym)
